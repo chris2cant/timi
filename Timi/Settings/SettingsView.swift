@@ -42,6 +42,18 @@ struct SettingsView: View {
         Button("Réinitialiser le décalage") { appState.resetOffset() }
           .disabled(appState.offset == .zero)
       }
+      Section("Masquage automatique") {
+        Picker("Mode", selection: $appState.autoHideMode) {
+          ForEach(AutoHideMode.allCases) { mode in Text(mode.title).tag(mode) }
+        }
+        if appState.autoHideMode != .off {
+          Stepper(value: $appState.autoHideDelay, in: AppState.autoHideDelayRange, step: 0.5) {
+            Text("Délai avant masquage : \(appState.autoHideDelay, specifier: "%.1f") s")
+          }
+        }
+        Text("Timi se cache contre le bord d’écran le plus proche et réapparaît quand la souris touche cet endroit.")
+          .font(.caption).foregroundStyle(.secondary)
+      }
       Section("Position") {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
           ForEach(MascotPosition.allCases) { position in

@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   let dictationStore: DictationStore
   let dictationCoordinator: DictationCoordinator
   private var mascotWindowController: MascotWindowController?
+  private var menuBarController: MenuBarController?
   let shortcutMonitor = GlobalShortcutMonitor()
   private var wasHiddenBeforeDictation = false
 
@@ -24,7 +25,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       dictationCoordinator: dictationCoordinator
     )
     mascotWindowController = controller
+    menuBarController = MenuBarController(appState: appState)
 
+    appState.autoHideModeDidChange = { [weak controller] mode in
+      controller?.setAutoHideMode(mode)
+    }
+    appState.autoHideDelayDidChange = { [weak controller] delay in
+      controller?.setAutoHideDelay(delay)
+    }
+    controller.setAutoHideDelay(appState.autoHideDelay)
+    controller.setAutoHideMode(appState.autoHideMode)
     appState.placementDidChange = { [weak controller] position, offset, displayUUID in
       controller?.move(to: position, offset: offset, displayUUID: displayUUID)
     }

@@ -57,16 +57,14 @@ struct ChatView: View {
 
       Spacer()
 
-      Button(action: state.stopSpeaking) {
-        Image(systemName: "speaker.slash.fill")
+      Button(action: state.toggleMute) {
+        Image(systemName: state.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
           .font(.system(size: 11, weight: .semibold))
           .frame(width: 24, height: 24)
       }
       .buttonStyle(.plain)
-      .foregroundStyle(state.isSpeaking ? Color.primary : Color.secondary)
-      .disabled(!state.isSpeaking)
-      .opacity(state.isSpeaking ? 1 : 0.45)
-      .accessibilityLabel("Arrêter la lecture")
+      .foregroundStyle(state.isMuted ? Color.red : Color.secondary)
+      .accessibilityLabel(state.isMuted ? "Réactiver la voix" : "Couper la voix")
 
       Button(action: closeConversation) {
         Image(systemName: "xmark")

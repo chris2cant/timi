@@ -225,6 +225,50 @@ final class PositionCalculatorTests: XCTestCase {
     )
   }
 
+  func testHideEdgePicksNearestEdgeAndSkipsEdgesWithNeighbourScreen() {
+    let nearLeft = CGPoint(x: 110, y: 300)
+    XCTAssertEqual(
+      PositionCalculator.hideEdge(origin: nearLeft, windowSize: size, in: frame),
+      .left
+    )
+    let neighbour = CGRect(x: frame.minX - 500, y: frame.minY, width: 500, height: frame.height)
+    XCTAssertNotEqual(
+      PositionCalculator.hideEdge(
+        origin: nearLeft, windowSize: size, in: frame, otherFrames: [neighbour]
+      ),
+      .left
+    )
+  }
+
+  func testHiddenOriginSlidesOffEdgeLeavingVisibleStrip() {
+    let origin = CGPoint(x: 110, y: 300)
+    func hidden(_ edge: HideEdge, _ strip: CGFloat) -> CGPoint {
+      PositionCalculator.hiddenOrigin(
+        origin: origin, windowSize: size, in: frame, edge: edge, visibleStrip: strip
+      )
+    }
+    XCTAssertEqual(hidden(.left, 0).x, frame.minX - size.width)
+    XCTAssertEqual(hidden(.left, 4).x, frame.minX - size.width + 4)
+    XCTAssertEqual(hidden(.right, 4).x, frame.maxX - 4)
+    XCTAssertEqual(hidden(.bottom, 4).y, frame.minY - size.height + 4)
+    XCTAssertEqual(hidden(.top, 0).y, frame.maxY)
+    XCTAssertEqual(hidden(.left, 0).y, origin.y)
+  }
+
+  func testRevealZoneHugsEdgeOverMascotSpan() {
+    let origin = CGPoint(x: 110, y: 300)
+    let zone = PositionCalculator.revealZone(
+      origin: origin, windowSize: size, in: frame, edge: .left, thickness: 2
+    )
+    XCTAssertTrue(zone.contains(CGPoint(x: frame.minX, y: origin.y + 5)))
+    XCTAssertFalse(zone.contains(CGPoint(x: frame.minX + 3, y: origin.y + 5)))
+    XCTAssertFalse(zone.contains(CGPoint(x: frame.minX, y: origin.y + size.height + 5)))
+    let right = PositionCalculator.revealZone(
+      origin: origin, windowSize: size, in: frame, edge: .right, thickness: 2
+    )
+    XCTAssertTrue(right.contains(CGPoint(x: frame.maxX - 1, y: origin.y + 5)))
+  }
+
   private func clamped(_ point: CGPoint) -> CGPoint {
     PositionCalculator.clamped(origin: point, windowSize: size, to: frame)
   }

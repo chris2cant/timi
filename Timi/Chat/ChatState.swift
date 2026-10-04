@@ -26,6 +26,7 @@ final class ChatState: ObservableObject {
   @Published private(set) var availabilityMessage: String?
   @Published private(set) var isResponding = false
   @Published private(set) var isSpeaking = false
+  @Published private(set) var isMuted = false
 
   let speechInput: SpeechInputController
   private let dictationCoordinator: DictationCoordinator
@@ -114,6 +115,11 @@ final class ChatState: ObservableObject {
     speechOutput.stop()
   }
 
+  func toggleMute() {
+    isMuted.toggle()
+    if isMuted { speechOutput.stop() }
+  }
+
   private func modelSession() -> LanguageModelSession {
     if let session {
       return session
@@ -141,10 +147,7 @@ final class ChatState: ObservableObject {
         updateMessage(id: messageID, content: "Je n’ai pas réussi à formuler une réponse.")
       }
       isResponding = false
-      speechOutput.speak(
-        messageContent(id: messageID),
-        preferredVoiceIdentifier: appState.speechVoiceIdentifier
-      )
+      speak(messageContent(id: messageID))
     } catch is CancellationError {
       isResponding = false
     } catch {
@@ -164,9 +167,11 @@ final class ChatState: ObservableObject {
   private func finishWithError(_ message: String, messageID: UUID) {
     updateMessage(id: messageID, content: message)
     isResponding = false
-    speechOutput.speak(
-      message,
-      preferredVoiceIdentifier: appState.speechVoiceIdentifier
-    )
+    speak(message)
+  }
+
+  private func speak(_ text: String) {
+    guard !isMuted else { return }
+    speechOutput.speak(text, preferredVoiceIdentifier: appState.speechVoiceIdentifier)
   }
 }

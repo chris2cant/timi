@@ -49,8 +49,34 @@ enum DictationShortcut: String, CaseIterable, Identifiable {
   }
 }
 
+enum AutoHideMode: String, CaseIterable, Identifiable {
+  case off
+  case hidden
+  case peek
+
+  var id: String { rawValue }
+
+  /// Points of the mascot that stay on screen when hidden.
+  static let peekStrip: CGFloat = 4
+
+  var visibleStrip: CGFloat {
+    self == .peek ? Self.peekStrip : 0
+  }
+
+  var title: String {
+    switch self {
+    case .off: "Désactivé"
+    case .hidden: "Masquer complètement"
+    case .peek: "Masquer (\(Int(Self.peekStrip)) pt visibles)"
+    }
+  }
+}
+
 @MainActor
 final class AppState: ObservableObject {
+  static let defaultAutoHideDelay: TimeInterval = 0.5
+  static let autoHideDelayRange: ClosedRange<TimeInterval> = 0...10
+
   private enum Keys {
     static let mascotPosition = "mascotPosition"
     static let mascotOffsetX = "mascotOffsetX"
@@ -61,6 +87,8 @@ final class AppState: ObservableObject {
     static let dictationLanguage = "dictationLanguage"
     static let dictationCleanupEnabled = "dictationCleanupEnabled"
     static let dictationShortcut = "dictationShortcut"
+    static let autoHideMode = "autoHideMode"
+    static let autoHideDelay = "autoHideDelay"
   }
 
   @Published private(set) var position: MascotPosition
@@ -97,10 +125,24 @@ final class AppState: ObservableObject {
       visibilityDidChange?(isVisible)
     }
   }
+  @Published var autoHideDelay: TimeInterval {
+    didSet {
+      defaults.set(autoHideDelay, forKey: Keys.autoHideDelay)
+      autoHideDelayDidChange?(autoHideDelay)
+    }
+  }
+  @Published var autoHideMode: AutoHideMode {
+    didSet {
+      defaults.set(autoHideMode.rawValue, forKey: Keys.autoHideMode)
+      autoHideModeDidChange?(autoHideMode)
+    }
+  }
 
   private let defaults: UserDefaults
   var placementDidChange: ((MascotPosition, CGSize, String?) -> Void)?
   var visibilityDidChange: ((Bool) -> Void)?
+  var autoHideModeDidChange: ((AutoHideMode) -> Void)?
+  var autoHideDelayDidChange: ((TimeInterval) -> Void)?
   var dictationShortcutDidChange: ((DictationShortcut) -> Void)?
 
   init(defaults: UserDefaults = .standard) {
@@ -119,6 +161,9 @@ final class AppState: ObservableObject {
     dictationShortcut = defaults.string(forKey: Keys.dictationShortcut)
       .flatMap(DictationShortcut.init(rawValue:)) ?? .controlSpace
     isVisible = defaults.object(forKey: Keys.mascotIsVisible) as? Bool ?? true
+    autoHideMode = defaults.string(forKey: Keys.autoHideMode)
+      .flatMap(AutoHideMode.init(rawValue:)) ?? .off
+    autoHideDelay = defaults.object(forKey: Keys.autoHideDelay) as? Double ?? Self.defaultAutoHideDelay
   }
 
   func select(_ position: MascotPosition) {

@@ -64,6 +64,24 @@ final class AppStateTests: XCTestCase {
     }
   }
 
+  func testAutoHideModeDefaultsToOffAndPersists() {
+    withDefaults { defaults in
+      let state = AppState(defaults: defaults)
+      var notified: AutoHideMode?
+      state.autoHideModeDidChange = { notified = $0 }
+
+      XCTAssertEqual(state.autoHideMode, .off)
+      XCTAssertEqual(state.autoHideDelay, 0.5)
+      state.autoHideDelay = 3
+      XCTAssertEqual(AppState(defaults: defaults).autoHideDelay, 3)
+
+      state.autoHideMode = .peek
+      XCTAssertEqual(notified, .peek)
+      XCTAssertEqual(defaults.string(forKey: "autoHideMode"), "peek")
+      XCTAssertEqual(AppState(defaults: defaults).autoHideMode, .peek)
+    }
+  }
+
   func testDictationCleanupPreferencePersists() {
     withDefaults { defaults in
       let state = AppState(defaults: defaults)

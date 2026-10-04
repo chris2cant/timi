@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* TimiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* TimiApp.swift */; };
 		A10000000000000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* AppDelegate.swift */; };
+		A1000000000000000000F001 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000F001 /* MenuBarController.swift */; };
 		A10000000000000000000003 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* AppState.swift */; };
 		A10000000000000000000004 /* MascotPosition.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* MascotPosition.swift */; };
 		A10000000000000000000005 /* PositionCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* PositionCalculator.swift */; };
@@ -48,6 +49,7 @@
 /* Begin PBXFileReference section */
 		A20000000000000000000001 /* TimiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimiApp.swift; sourceTree = "<group>"; };
 		A20000000000000000000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A2000000000000000000F001 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		A20000000000000000000003 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		A20000000000000000000004 /* MascotPosition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MascotPosition.swift; sourceTree = "<group>"; };
 		A20000000000000000000005 /* PositionCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PositionCalculator.swift; sourceTree = "<group>"; };
@@ -123,6 +125,7 @@
 			children = (
 				A20000000000000000000001 /* TimiApp.swift */,
 				A20000000000000000000002 /* AppDelegate.swift */,
+				A2000000000000000000F001 /* MenuBarController.swift */,
 				A20000000000000000000003 /* AppState.swift */,
 			);
 			path = App;
@@ -296,6 +299,7 @@
 				A10000000000000000000013 /* EyeProjection.swift in Sources */,
 				A10000000000000000000001 /* TimiApp.swift in Sources */,
 				A10000000000000000000002 /* AppDelegate.swift in Sources */,
+				A1000000000000000000F001 /* MenuBarController.swift in Sources */,
 				A10000000000000000000003 /* AppState.swift in Sources */,
 				A10000000000000000000004 /* MascotPosition.swift in Sources */,
 				A10000000000000000000005 /* PositionCalculator.swift in Sources */,

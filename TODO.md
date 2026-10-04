@@ -4,6 +4,9 @@ Dernière mise à jour : 2026-10-04
 
 ## Terminé
 
+- [x] Ajouter l’auto-hide (Désactivé / Masquer complètement / 4 pt visibles) avec délai réglable en secondes : Timi glisse contre le bord le plus proche sans écran voisin et réapparaît au survol du bord.
+- [x] Ajouter l’icône de barre des menus (`NSStatusItem`, icône template) avec Afficher/Masquer, Réglages et Quitter.
+- [x] Refaire l’icône d’app avec les deux yeux capsules de face aux proportions de `EyeProjection`.
 - [x] Ajouter la dictée globale locale avec raccourci hybride configurable et `CGEventTap`.
 - [x] Permettre au raccourci de fonctionner en écoute seule avant l’autorisation Accessibilité, puis réinstaller automatiquement le tap neutralisant.
 - [x] Fiabiliser le raccourci avec l’enregistrement système macOS, afficher son état réel et proposer un test direct dans Réglages, avec `CGEventTap` en repli.
@@ -55,6 +58,7 @@ Dernière mise à jour : 2026-10-04
 - [x] Ouvrir une bulle de conversation native au clic sur Timi.
 - [x] Intégrer le modèle local Apple Intelligence avec `FoundationModels` sur macOS 26 et versions ultérieures.
 - [x] Afficher la réponse progressivement et conserver le contexte de la conversation pendant la session.
+- [x] Transformer le bouton haut-parleur en bascule muet : coupe la lecture en cours immédiatement et empêche les lectures suivantes tant qu’il est actif (non persisté).
 - [x] Expliquer les états indisponible, désactivé, incompatible et modèle en préparation.
 - [x] Conserver la cible macOS 14 avec une activation conditionnelle de la conversation intelligente.
 - [x] Positionner la bulle dans la zone visible à côté de Timi avec un calcul pur testé.
@@ -78,6 +82,8 @@ Dernière mise à jour : 2026-10-04
 
 ## À valider manuellement
 
+- [ ] Valider l’auto-hide : mode complet et 4 pt, deux écrans, chat ouvert, dictée globale, drag, plein écran.
+- [ ] Valider l’icône de barre des menus en thème clair et sombre, et la nouvelle icône d’app à 16 pt.
 - [ ] Autoriser Microphone, Reconnaissance vocale, Accessibilité et Surveillance de l’entrée sur une installation neuve.
 - [ ] Valider appui bref, maintien, second appui et les trois raccourcis configurables hors de Timi.
 - [ ] Vérifier le conflit `⌃ Espace` avec le changement de source de saisie macOS.

@@ -9,7 +9,83 @@ struct MascotAttachmentEdges: OptionSet, Equatable, Sendable {
   static let top = Self(rawValue: 1 << 3)
 }
 
+enum HideEdge: CaseIterable, Equatable, Sendable {
+  case left
+  case right
+  case bottom
+  case top
+}
+
 enum PositionCalculator {
+  /// Nearest screen edge the mascot can slide off, skipping edges where another
+  /// screen is adjacent (the mascot would otherwise show up on that screen).
+  static func hideEdge(
+    origin: CGPoint,
+    windowSize: CGSize,
+    in frame: CGRect,
+    otherFrames: [CGRect] = []
+  ) -> HideEdge? {
+    let candidates: [(edge: HideEdge, distance: CGFloat, probe: CGPoint)] = [
+      (.left, origin.x - frame.minX,
+       CGPoint(x: frame.minX - 1, y: origin.y + windowSize.height / 2)),
+      (.right, frame.maxX - (origin.x + windowSize.width),
+       CGPoint(x: frame.maxX + 1, y: origin.y + windowSize.height / 2)),
+      (.bottom, origin.y - frame.minY,
+       CGPoint(x: origin.x + windowSize.width / 2, y: frame.minY - 1)),
+      (.top, frame.maxY - (origin.y + windowSize.height),
+       CGPoint(x: origin.x + windowSize.width / 2, y: frame.maxY + 1)),
+    ]
+
+    return candidates
+      .filter { candidate in !otherFrames.contains { $0.contains(candidate.probe) } }
+      .min { $0.distance < $1.distance }?
+      .edge
+  }
+
+  /// Origin of the mascot slid off `edge`, leaving `visibleStrip` points on screen.
+  static func hiddenOrigin(
+    origin: CGPoint,
+    windowSize: CGSize,
+    in frame: CGRect,
+    edge: HideEdge,
+    visibleStrip: CGFloat
+  ) -> CGPoint {
+    let clampedOrigin = clamped(origin: origin, windowSize: windowSize, to: frame)
+    return switch edge {
+    case .left:
+      CGPoint(x: frame.minX - windowSize.width + visibleStrip, y: clampedOrigin.y)
+    case .right:
+      CGPoint(x: frame.maxX - visibleStrip, y: clampedOrigin.y)
+    case .bottom:
+      CGPoint(x: clampedOrigin.x, y: frame.minY - windowSize.height + visibleStrip)
+    case .top:
+      CGPoint(x: clampedOrigin.x, y: frame.maxY - visibleStrip)
+    }
+  }
+
+  /// Strip along `edge`, over the mascot's span, where the pointer reveals it.
+  /// It reaches 1 pt past the edge because the pointer can sit exactly on it.
+  static func revealZone(
+    origin: CGPoint,
+    windowSize: CGSize,
+    in frame: CGRect,
+    edge: HideEdge,
+    thickness: CGFloat
+  ) -> CGRect {
+    let clampedOrigin = clamped(origin: origin, windowSize: windowSize, to: frame)
+    let depth = thickness + 1
+    return switch edge {
+    case .left:
+      CGRect(x: frame.minX - 1, y: clampedOrigin.y, width: depth, height: windowSize.height)
+    case .right:
+      CGRect(x: frame.maxX - thickness, y: clampedOrigin.y, width: depth, height: windowSize.height)
+    case .bottom:
+      CGRect(x: clampedOrigin.x, y: frame.minY - 1, width: windowSize.width, height: depth)
+    case .top:
+      CGRect(x: clampedOrigin.x, y: frame.maxY - thickness, width: windowSize.width, height: depth)
+    }
+  }
+
   static func origin(
     for position: MascotPosition,
     in visibleFrame: CGRect,
