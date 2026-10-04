@@ -8,7 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
     configureApplicationIcon()
 
-    let controller = MascotWindowController()
+    let controller = MascotWindowController(appState: appState)
     mascotWindowController = controller
 
     appState.placementDidChange = { [weak controller] position, offset, displayUUID in

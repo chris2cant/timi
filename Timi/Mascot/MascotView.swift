@@ -3,9 +3,16 @@ import SwiftUI
 @MainActor
 final class MascotInteractionState: ObservableObject {
   @Published private(set) var clickCount = 0
+  @Published private(set) var attachmentEdges: MascotAttachmentEdges = []
+  var activationHandler: (() -> Void)?
 
-  func reactToClick() {
+  func activate() {
     clickCount += 1
+    activationHandler?()
+  }
+
+  func updateAttachmentEdges(_ edges: MascotAttachmentEdges) {
+    attachmentEdges = edges
   }
 }
 
@@ -18,44 +25,40 @@ struct MascotView: View {
   @State private var isReacting = false
   @State private var eyesAreOpen = true
 
+  private let cornerRadius: CGFloat = 22
+
+  private var silhouette: MascotSilhouette {
+    MascotSilhouette(
+      attachmentEdges: interactionState.attachmentEdges,
+      cornerRadius: cornerRadius
+    )
+  }
+
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: 22, style: .continuous)
-        .fill(Color(red: 0.008, green: 0.008, blue: 0.012))
-        .overlay {
-          RoundedRectangle(cornerRadius: 22, style: .continuous)
-            .stroke(.white.opacity(0.045), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.28), radius: 7, y: 3)
+      silhouette
+        .fill(.black)
 
-      VStack(spacing: 7) {
-        HStack(spacing: 35) {
-          eye
-          eye
+      sphericalEyes
+        .mask {
+          silhouette
         }
-
-        SmileShape()
-          .stroke(
-            .white.opacity(0.95),
-            style: StrokeStyle(lineWidth: 2.4, lineCap: .round)
+        .scaleEffect(
+          x: motionScale(
+            breathing: isBreathing ? 1.006 : 0.994,
+            interaction: isReacting ? 1.025 : (isHovering ? 1.012 : 1)
+          ),
+          y: motionScale(
+            breathing: isBreathing ? 1.012 : 0.988,
+            interaction: isReacting ? 0.975 : (isHovering ? 1.012 : 1)
           )
-          .frame(width: isReacting ? 42 : 36, height: isReacting ? 15 : 12)
-          .shadow(color: .white.opacity(0.18), radius: 2)
-      }
-      .offset(y: 2)
+        )
     }
-    .padding(5)
-    .scaleEffect(
-      x: motionScale(
-        breathing: isBreathing ? 1.006 : 0.994,
-        interaction: isReacting ? 1.025 : (isHovering ? 1.012 : 1)
-      ),
-      y: motionScale(
-        breathing: isBreathing ? 1.012 : 0.988,
-        interaction: isReacting ? 0.975 : (isHovering ? 1.012 : 1)
-      )
+    .frame(
+      width: MascotWindowController.windowSize.width,
+      height: MascotWindowController.windowSize.height
     )
-    .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+    .contentShape(silhouette)
     .onHover { hovering in
       isHovering = hovering
     }
@@ -75,21 +78,59 @@ struct MascotView: View {
     .animation(reduceMotion ? nil : .spring(duration: 0.2), value: isReacting)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("Timi mascot")
-    .accessibilityHint("Activate for a reaction. Use Settings to move Timi.")
+    .accessibilityHint("Activate to open the conversation. Use Settings to move Timi.")
     .accessibilityAddTraits(.isButton)
     .accessibilityAction {
-      interactionState.reactToClick()
+      interactionState.activate()
     }
   }
 
-  private var eye: some View {
-    Capsule()
-      .fill(.white)
-      .frame(width: 20, height: 39)
-      .shadow(color: .white.opacity(0.24), radius: 3)
-      .scaleEffect(y: eyesAreOpen ? 1 : 0.08)
-      .animation(.easeInOut(duration: 0.09), value: eyesAreOpen)
-      .accessibilityHidden(true)
+  private var sphericalEyes: some View {
+    TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { timeline in
+      Canvas { context, size in
+        let projectionRadius = min(size.width, size.height) / 2
+        let eyeScale: CGFloat = 72
+        let gaze = reduceMotion
+          ? EyeProjection.restingGaze
+          : EyeProjection.wanderingGaze(at: timeline.date.timeIntervalSinceReferenceDate)
+        let eyes = EyeProjection.eyes(for: gaze, radius: projectionRadius)
+        let width = EyeProjection.eyeWidth * eyeScale
+        let height = EyeProjection.eyeHeight * eyeScale
+        let center = CGPoint(x: size.width / 2, y: size.height / 2 + 1)
+        let blinkScale: CGFloat = eyesAreOpen ? 1 : 0.06
+        let capsule = Path(
+          roundedRect: CGRect(
+            x: -width / 2,
+            y: -height / 2,
+            width: width,
+            height: height
+          ),
+          cornerRadius: width / 2
+        )
+
+        for eye in eyes where eye.depth > 0.02 {
+          let transform = CGAffineTransform(
+            a: eye.a,
+            b: eye.b * blinkScale,
+            c: eye.c,
+            d: eye.d * blinkScale,
+            tx: center.x + eye.x,
+            ty: center.y + eye.y
+          )
+          let opacity = min(1, eye.depth / 0.12) * 0.96
+          context.fill(
+            capsule.applying(transform),
+            with: .color(.white.opacity(opacity))
+          )
+        }
+      }
+    }
+    .frame(
+      width: MascotWindowController.mascotSize.width,
+      height: MascotWindowController.mascotSize.height
+    )
+    .animation(.easeInOut(duration: 0.09), value: eyesAreOpen)
+    .accessibilityHidden(true)
   }
 
   private func motionScale(breathing: CGFloat, interaction: CGFloat) -> CGFloat {
@@ -139,16 +180,178 @@ struct MascotView: View {
   }
 }
 
-private struct SmileShape: Shape {
+private struct MascotSilhouette: Shape {
+  let attachmentEdges: MascotAttachmentEdges
+  let cornerRadius: CGFloat
+
   func path(in rect: CGRect) -> Path {
-    var path = Path()
-    path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-    path.addCurve(
-      to: CGPoint(x: rect.maxX, y: rect.minY),
-      control1: CGPoint(x: rect.width * 0.24, y: rect.maxY),
-      control2: CGPoint(x: rect.width * 0.76, y: rect.maxY)
+    let bodyRect = rect.insetBy(
+      dx: MascotWindowController.drawingMargin,
+      dy: MascotWindowController.drawingMargin
     )
+    let radius = min(cornerRadius, min(bodyRect.width, bodyRect.height) / 2)
+    let top = attachmentEdges.contains(.top)
+    let right = attachmentEdges.contains(.right)
+    let bottom = attachmentEdges.contains(.bottom)
+    let left = attachmentEdges.contains(.left)
+
+    let topLeft = topLeftCorner(in: bodyRect, radius: radius, top: top, left: left)
+    let topRight = topRightCorner(in: bodyRect, radius: radius, top: top, right: right)
+    let bottomRight = bottomRightCorner(
+      in: bodyRect,
+      radius: radius,
+      bottom: bottom,
+      right: right
+    )
+    let bottomLeft = bottomLeftCorner(
+      in: bodyRect,
+      radius: radius,
+      bottom: bottom,
+      left: left
+    )
+
+    var path = Path()
+    path.move(to: topLeft.horizontalPoint)
+    path.addLine(to: topRight.horizontalPoint)
+    path.addQuadCurve(to: topRight.verticalPoint, control: topRight.controlPoint)
+    path.addLine(to: bottomRight.verticalPoint)
+    path.addQuadCurve(to: bottomRight.horizontalPoint, control: bottomRight.controlPoint)
+    path.addLine(to: bottomLeft.horizontalPoint)
+    path.addQuadCurve(to: bottomLeft.verticalPoint, control: bottomLeft.controlPoint)
+    path.addLine(to: topLeft.verticalPoint)
+    path.addQuadCurve(to: topLeft.horizontalPoint, control: topLeft.controlPoint)
+    path.closeSubpath()
     return path
+  }
+
+  private struct Corner {
+    let horizontalPoint: CGPoint
+    let verticalPoint: CGPoint
+    let controlPoint: CGPoint
+  }
+
+  private func topLeftCorner(
+    in rect: CGRect,
+    radius: CGFloat,
+    top: Bool,
+    left: Bool
+  ) -> Corner {
+    if top, left {
+      let point = CGPoint(x: rect.minX, y: rect.minY)
+      return Corner(horizontalPoint: point, verticalPoint: point, controlPoint: point)
+    }
+    if top {
+      return Corner(
+        horizontalPoint: CGPoint(x: rect.minX - radius, y: rect.minY),
+        verticalPoint: CGPoint(x: rect.minX, y: rect.minY + radius),
+        controlPoint: CGPoint(x: rect.minX, y: rect.minY)
+      )
+    }
+    if left {
+      return Corner(
+        horizontalPoint: CGPoint(x: rect.minX + radius, y: rect.minY),
+        verticalPoint: CGPoint(x: rect.minX, y: rect.minY - radius),
+        controlPoint: CGPoint(x: rect.minX, y: rect.minY)
+      )
+    }
+    return Corner(
+      horizontalPoint: CGPoint(x: rect.minX + radius, y: rect.minY),
+      verticalPoint: CGPoint(x: rect.minX, y: rect.minY + radius),
+      controlPoint: CGPoint(x: rect.minX, y: rect.minY)
+    )
+  }
+
+  private func topRightCorner(
+    in rect: CGRect,
+    radius: CGFloat,
+    top: Bool,
+    right: Bool
+  ) -> Corner {
+    if top, right {
+      let point = CGPoint(x: rect.maxX, y: rect.minY)
+      return Corner(horizontalPoint: point, verticalPoint: point, controlPoint: point)
+    }
+    if top {
+      return Corner(
+        horizontalPoint: CGPoint(x: rect.maxX + radius, y: rect.minY),
+        verticalPoint: CGPoint(x: rect.maxX, y: rect.minY + radius),
+        controlPoint: CGPoint(x: rect.maxX, y: rect.minY)
+      )
+    }
+    if right {
+      return Corner(
+        horizontalPoint: CGPoint(x: rect.maxX - radius, y: rect.minY),
+        verticalPoint: CGPoint(x: rect.maxX, y: rect.minY - radius),
+        controlPoint: CGPoint(x: rect.maxX, y: rect.minY)
+      )
+    }
+    return Corner(
+      horizontalPoint: CGPoint(x: rect.maxX - radius, y: rect.minY),
+      verticalPoint: CGPoint(x: rect.maxX, y: rect.minY + radius),
+      controlPoint: CGPoint(x: rect.maxX, y: rect.minY)
+    )
+  }
+
+  private func bottomRightCorner(
+    in rect: CGRect,
+    radius: CGFloat,
+    bottom: Bool,
+    right: Bool
+  ) -> Corner {
+    if bottom, right {
+      let point = CGPoint(x: rect.maxX, y: rect.maxY)
+      return Corner(horizontalPoint: point, verticalPoint: point, controlPoint: point)
+    }
+    if bottom {
+      return Corner(
+        horizontalPoint: CGPoint(x: rect.maxX + radius, y: rect.maxY),
+        verticalPoint: CGPoint(x: rect.maxX, y: rect.maxY - radius),
+        controlPoint: CGPoint(x: rect.maxX, y: rect.maxY)
+      )
+    }
+    if right {
+      return Corner(
+        horizontalPoint: CGPoint(x: rect.maxX - radius, y: rect.maxY),
+        verticalPoint: CGPoint(x: rect.maxX, y: rect.maxY + radius),
+        controlPoint: CGPoint(x: rect.maxX, y: rect.maxY)
+      )
+    }
+    return Corner(
+      horizontalPoint: CGPoint(x: rect.maxX - radius, y: rect.maxY),
+      verticalPoint: CGPoint(x: rect.maxX, y: rect.maxY - radius),
+      controlPoint: CGPoint(x: rect.maxX, y: rect.maxY)
+    )
+  }
+
+  private func bottomLeftCorner(
+    in rect: CGRect,
+    radius: CGFloat,
+    bottom: Bool,
+    left: Bool
+  ) -> Corner {
+    if bottom, left {
+      let point = CGPoint(x: rect.minX, y: rect.maxY)
+      return Corner(horizontalPoint: point, verticalPoint: point, controlPoint: point)
+    }
+    if bottom {
+      return Corner(
+        horizontalPoint: CGPoint(x: rect.minX - radius, y: rect.maxY),
+        verticalPoint: CGPoint(x: rect.minX, y: rect.maxY - radius),
+        controlPoint: CGPoint(x: rect.minX, y: rect.maxY)
+      )
+    }
+    if left {
+      return Corner(
+        horizontalPoint: CGPoint(x: rect.minX + radius, y: rect.maxY),
+        verticalPoint: CGPoint(x: rect.minX, y: rect.maxY + radius),
+        controlPoint: CGPoint(x: rect.minX, y: rect.maxY)
+      )
+    }
+    return Corner(
+      horizontalPoint: CGPoint(x: rect.minX + radius, y: rect.maxY),
+      verticalPoint: CGPoint(x: rect.minX, y: rect.maxY - radius),
+      controlPoint: CGPoint(x: rect.minX, y: rect.maxY)
+    )
   }
 }
 
@@ -162,10 +365,6 @@ private struct MascotPreviewBackground: View {
       )
 
       MascotView(interactionState: MascotInteractionState())
-        .frame(
-          width: MascotWindowController.windowSize.width,
-          height: MascotWindowController.windowSize.height
-        )
     }
     .frame(width: 260, height: 180)
   }

@@ -1,5 +1,14 @@
 import CoreGraphics
 
+struct MascotAttachmentEdges: OptionSet, Equatable, Sendable {
+  let rawValue: Int
+
+  static let left = Self(rawValue: 1 << 0)
+  static let right = Self(rawValue: 1 << 1)
+  static let bottom = Self(rawValue: 1 << 2)
+  static let top = Self(rawValue: 1 << 3)
+}
+
 enum PositionCalculator {
   static func origin(
     for position: MascotPosition,
@@ -72,6 +81,30 @@ enum PositionCalculator {
     )
 
     return CGPoint(x: x, y: y)
+  }
+
+  static func attachmentEdges(
+    origin: CGPoint,
+    windowSize: CGSize,
+    in frame: CGRect,
+    tolerance: CGFloat = 0.5
+  ) -> MascotAttachmentEdges {
+    var edges: MascotAttachmentEdges = []
+
+    if abs(origin.x - frame.minX) <= tolerance {
+      edges.insert(.left)
+    }
+    if abs(origin.x + windowSize.width - frame.maxX) <= tolerance {
+      edges.insert(.right)
+    }
+    if abs(origin.y - frame.minY) <= tolerance {
+      edges.insert(.bottom)
+    }
+    if abs(origin.y + windowSize.height - frame.maxY) <= tolerance {
+      edges.insert(.top)
+    }
+
+    return edges
   }
 
   static func indexOfFrameContainingMost(

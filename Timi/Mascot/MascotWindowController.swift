@@ -4,8 +4,21 @@ import SwiftUI
 
 @MainActor
 private final class DraggableHostingView<Content: View>: NSHostingView<Content> {
+  var didBeginDragging: (() -> Void)?
   var didFinishDragging: ((CGPoint) -> Void)?
   var didClick: (() -> Void)?
+  var constrainedOrigin: ((CGPoint, CGPoint) -> CGPoint)?
+  var draggableRect = CGRect.zero
+
+  private var initialPointerLocation: CGPoint?
+  private var initialWindowOrigin: CGPoint?
+  private var draggedDistance: CGFloat = 0
+  private var reportedDrag = false
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard draggableRect.contains(point) else { return nil }
+    return super.hitTest(point)
+  }
 
   override func mouseDown(with event: NSEvent) {
     guard let window else {
@@ -13,37 +26,74 @@ private final class DraggableHostingView<Content: View>: NSHostingView<Content> 
       return
     }
 
-    let initialOrigin = window.frame.origin
-    window.performDrag(with: event)
+    initialPointerLocation = NSEvent.mouseLocation
+    initialWindowOrigin = window.frame.origin
+    draggedDistance = 0
+    reportedDrag = false
+  }
 
-    let distance = hypot(
-      window.frame.origin.x - initialOrigin.x,
-      window.frame.origin.y - initialOrigin.y
+  override func mouseDragged(with event: NSEvent) {
+    guard let window,
+          let initialPointerLocation,
+          let initialWindowOrigin else {
+      return
+    }
+
+    let pointerLocation = NSEvent.mouseLocation
+    let delta = CGPoint(
+      x: pointerLocation.x - initialPointerLocation.x,
+      y: pointerLocation.y - initialPointerLocation.y
     )
-    if distance < 3 {
+    draggedDistance = max(draggedDistance, hypot(delta.x, delta.y))
+    if draggedDistance >= 3, !reportedDrag {
+      reportedDrag = true
+      didBeginDragging?()
+    }
+
+    let proposedOrigin = CGPoint(
+      x: initialWindowOrigin.x + delta.x,
+      y: initialWindowOrigin.y + delta.y
+    )
+    window.setFrameOrigin(constrainedOrigin?(proposedOrigin, pointerLocation) ?? proposedOrigin)
+  }
+
+  override func mouseUp(with event: NSEvent) {
+    if draggedDistance < 3 {
       didClick?()
     }
     didFinishDragging?(NSEvent.mouseLocation)
+
+    initialPointerLocation = nil
+    initialWindowOrigin = nil
+    draggedDistance = 0
+    reportedDrag = false
   }
 }
 
 @MainActor
 final class MascotWindowController: NSObject {
-  static let windowSize = CGSize(width: 148, height: 104)
+  nonisolated static let mascotSize = CGSize(width: 148, height: 104)
+  nonisolated static let drawingMargin: CGFloat = 22
+  nonisolated static let windowSize = CGSize(
+    width: mascotSize.width + drawingMargin * 2,
+    height: mascotSize.height + drawingMargin * 2
+  )
   static let edgeMargin: CGFloat = 20
   static let edgeSnapThreshold: CGFloat = 36
 
   private let panel: NSPanel
   private let interactionState: MascotInteractionState
+  private let chatWindowController: ChatWindowController
   private var currentPosition = MascotPosition.bottomRight
   private var currentOffset = CGSize.zero
   private var currentDisplayUUID: String?
 
   var offsetDidChange: ((CGSize, String?) -> Void)?
 
-  override init() {
+  init(appState: AppState) {
     let interactionState = MascotInteractionState()
     self.interactionState = interactionState
+    chatWindowController = ChatWindowController(appState: appState)
     panel = NSPanel(
       contentRect: CGRect(origin: .zero, size: Self.windowSize),
       styleMask: [.borderless, .nonactivatingPanel],
@@ -52,11 +102,26 @@ final class MascotWindowController: NSObject {
     )
     super.init()
 
+    interactionState.activationHandler = { [weak self] in
+      self?.toggleChat()
+    }
+
     let hostingView = DraggableHostingView(
       rootView: MascotView(interactionState: interactionState)
     )
+    hostingView.draggableRect = CGRect(
+      origin: CGPoint(x: Self.drawingMargin, y: Self.drawingMargin),
+      size: Self.mascotSize
+    )
+    hostingView.constrainedOrigin = { [weak self] proposedOrigin, pointerLocation in
+      self?.constrainedWindowOrigin(proposedOrigin, pointerLocation: pointerLocation)
+        ?? proposedOrigin
+    }
     hostingView.didClick = { [weak interactionState] in
-      interactionState?.reactToClick()
+      interactionState?.activate()
+    }
+    hostingView.didBeginDragging = { [weak self] in
+      self?.chatWindowController.hide()
     }
     hostingView.didFinishDragging = { [weak self] pointerLocation in
       self?.dragEnded(at: pointerLocation)
@@ -100,6 +165,7 @@ final class MascotWindowController: NSObject {
       )
       panel.orderFrontRegardless()
     } else {
+      chatWindowController.hide()
       panel.orderOut(nil)
     }
   }
@@ -115,43 +181,51 @@ final class MascotWindowController: NSObject {
     let requestedOrigin = PositionCalculator.origin(
       for: position,
       in: visibleFrame,
-      windowSize: Self.windowSize,
+      windowSize: Self.mascotSize,
       margin: Self.edgeMargin,
       offset: offset
     )
-    let origin = PositionCalculator.clamped(
+    let mascotOrigin = PositionCalculator.clamped(
       origin: requestedOrigin,
-      windowSize: Self.windowSize,
+      windowSize: Self.mascotSize,
       to: screen.frame
     )
-    panel.setFrameOrigin(origin)
+    panel.setFrameOrigin(panelOrigin(forMascotOrigin: mascotOrigin))
+    updateAttachmentEdges(at: mascotOrigin, on: screen)
+    if chatWindowController.isVisible {
+      chatWindowController.move(attachedTo: mascotFrame, on: screen)
+    }
   }
 
   private func dragEnded(at pointerLocation: CGPoint) {
     guard let screen = screenContaining(pointerLocation)
-      ?? screenContainingMost(of: panel.frame)
+      ?? screenContainingMost(of: mascotFrame)
       ?? resolvedScreen(preferredUUID: currentDisplayUUID) else {
       return
     }
     let screenFrame = screen.frame
 
     let snappedOrigin = PositionCalculator.snappedToEdges(
-      origin: panel.frame.origin,
-      windowSize: Self.windowSize,
+      origin: mascotFrame.origin,
+      windowSize: Self.mascotSize,
       in: screenFrame,
       threshold: Self.edgeSnapThreshold
     )
-    panel.setFrameOrigin(snappedOrigin)
+    panel.setFrameOrigin(panelOrigin(forMascotOrigin: snappedOrigin))
+    updateAttachmentEdges(at: snappedOrigin, on: screen)
+    if chatWindowController.isVisible {
+      chatWindowController.move(attachedTo: mascotFrame, on: screen)
+    }
 
     let anchorOrigin = PositionCalculator.origin(
       for: currentPosition,
       in: screen.visibleFrame,
-      windowSize: Self.windowSize,
+      windowSize: Self.mascotSize,
       margin: Self.edgeMargin
     )
     let offset = CGSize(
-      width: panel.frame.minX - anchorOrigin.x,
-      height: panel.frame.minY - anchorOrigin.y
+      width: snappedOrigin.x - anchorOrigin.x,
+      height: snappedOrigin.y - anchorOrigin.y
     )
     currentOffset = offset
     currentDisplayUUID = Self.displayUUID(for: screen)
@@ -166,7 +240,7 @@ final class MascotWindowController: NSObject {
       return screen
     }
 
-    return screenContainingMost(of: panel.frame)
+    return screenContainingMost(of: mascotFrame)
       ?? panel.screen
       ?? NSScreen.main
       ?? NSScreen.screens.first
@@ -186,6 +260,68 @@ final class MascotWindowController: NSObject {
       return nil
     }
     return screens[index]
+  }
+
+  private var mascotFrame: CGRect {
+    CGRect(
+      origin: CGPoint(
+        x: panel.frame.minX + Self.drawingMargin,
+        y: panel.frame.minY + Self.drawingMargin
+      ),
+      size: Self.mascotSize
+    )
+  }
+
+  private func panelOrigin(forMascotOrigin origin: CGPoint) -> CGPoint {
+    CGPoint(
+      x: origin.x - Self.drawingMargin,
+      y: origin.y - Self.drawingMargin
+    )
+  }
+
+  private func toggleChat() {
+    let screen = screenContainingMost(of: mascotFrame)
+      ?? resolvedScreen(preferredUUID: currentDisplayUUID)
+    chatWindowController.toggle(attachedTo: mascotFrame, on: screen)
+  }
+
+  private func constrainedWindowOrigin(
+    _ proposedOrigin: CGPoint,
+    pointerLocation: CGPoint
+  ) -> CGPoint {
+    let proposedMascotOrigin = CGPoint(
+      x: proposedOrigin.x + Self.drawingMargin,
+      y: proposedOrigin.y + Self.drawingMargin
+    )
+    let proposedFrame = CGRect(origin: proposedMascotOrigin, size: Self.mascotSize)
+    let screen = screenContaining(pointerLocation)
+      ?? screenContainingMost(of: proposedFrame)
+      ?? resolvedScreen(preferredUUID: currentDisplayUUID)
+
+    guard let screen else { return proposedOrigin }
+    let constrainedMascotOrigin = PositionCalculator.clamped(
+      origin: proposedMascotOrigin,
+      windowSize: Self.mascotSize,
+      to: screen.frame
+    )
+    let previewMascotOrigin = PositionCalculator.snappedToEdges(
+      origin: constrainedMascotOrigin,
+      windowSize: Self.mascotSize,
+      in: screen.frame,
+      threshold: Self.edgeSnapThreshold
+    )
+    updateAttachmentEdges(at: previewMascotOrigin, on: screen)
+    return panelOrigin(forMascotOrigin: previewMascotOrigin)
+  }
+
+  private func updateAttachmentEdges(at origin: CGPoint, on screen: NSScreen) {
+    interactionState.updateAttachmentEdges(
+      PositionCalculator.attachmentEdges(
+        origin: origin,
+        windowSize: Self.mascotSize,
+        in: screen.frame
+      )
+    )
   }
 
   private func screenContaining(_ point: CGPoint) -> NSScreen? {

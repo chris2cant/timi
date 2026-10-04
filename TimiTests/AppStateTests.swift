@@ -11,6 +11,8 @@ final class AppStateTests: XCTestCase {
       XCTAssertEqual(state.position, .bottomRight)
       XCTAssertEqual(state.offset, .zero)
       XCTAssertNil(state.displayUUID)
+      XCTAssertNil(state.speechVoiceIdentifier)
+      XCTAssertEqual(state.dictationLanguage, .french)
       XCTAssertTrue(state.isVisible)
     }
   }
@@ -22,13 +24,41 @@ final class AppStateTests: XCTestCase {
       defaults.set(-18.0, forKey: "mascotOffsetY")
       defaults.set(false, forKey: "mascotIsVisible")
       defaults.set("display-uuid", forKey: "mascotDisplayUUID")
+      defaults.set("voice-identifier", forKey: "speechVoiceIdentifier")
+      defaults.set(DictationLanguage.english.rawValue, forKey: "dictationLanguage")
 
       let state = AppState(defaults: defaults)
 
       XCTAssertEqual(state.position, .topCenter)
       XCTAssertEqual(state.offset, CGSize(width: 42.5, height: -18))
       XCTAssertEqual(state.displayUUID, "display-uuid")
+      XCTAssertEqual(state.speechVoiceIdentifier, "voice-identifier")
+      XCTAssertEqual(state.dictationLanguage, .english)
       XCTAssertFalse(state.isVisible)
+    }
+  }
+
+  func testSpeechVoiceSelectionIsPersistedAndCanReturnToAutomatic() {
+    withDefaults { defaults in
+      let state = AppState(defaults: defaults)
+
+      state.speechVoiceIdentifier = "voice-identifier"
+      XCTAssertEqual(defaults.string(forKey: "speechVoiceIdentifier"), "voice-identifier")
+
+      state.speechVoiceIdentifier = nil
+      XCTAssertNil(defaults.string(forKey: "speechVoiceIdentifier"))
+    }
+  }
+
+  func testDictationLanguageDefaultsToFrenchAndPersistsSelection() {
+    withDefaults { defaults in
+      let state = AppState(defaults: defaults)
+
+      XCTAssertEqual(state.dictationLanguage, .french)
+
+      state.dictationLanguage = .automatic
+      XCTAssertEqual(defaults.string(forKey: "dictationLanguage"), "automatic")
+      XCTAssertEqual(AppState(defaults: defaults).dictationLanguage, .automatic)
     }
   }
 
