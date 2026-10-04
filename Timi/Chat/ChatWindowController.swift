@@ -15,8 +15,8 @@ final class ChatWindowController: NSObject, NSWindowDelegate {
 
   var isVisible: Bool { panel.isVisible }
 
-  init(appState: AppState) {
-    state = ChatState(appState: appState)
+  init(appState: AppState, dictationCoordinator: DictationCoordinator) {
+    state = ChatState(appState: appState, dictationCoordinator: dictationCoordinator)
     panel = ChatPanel(
       contentRect: CGRect(origin: .zero, size: Self.windowSize),
       styleMask: [.borderless, .nonactivatingPanel],

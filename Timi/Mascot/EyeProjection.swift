@@ -35,6 +35,22 @@ enum EyeProjection {
     return HeadGaze(yaw: yaw, pitch: pitch, roll: roll)
   }
 
+  static let maxTrackingYaw: CGFloat = 29
+  static let maxTrackingPitch: CGFloat = 20
+  static let trackingRestPitch: CGFloat = 0
+  static let trackingRoll: CGFloat = 0
+  static let trackingDistanceScale: CGFloat = 300
+
+  /// Gaze toward a pointer offset from the mascot center (screen space, y up).
+  /// `tanh` saturates smoothly so a far pointer never overshoots the sphere.
+  static func gaze(towardOffset offset: CGVector) -> HeadGaze {
+    return HeadGaze(
+      yaw: maxTrackingYaw * tanh(offset.dx / trackingDistanceScale),
+      pitch: trackingRestPitch + maxTrackingPitch * tanh(offset.dy / trackingDistanceScale),
+      roll: trackingRoll
+    )
+  }
+
   static func eyes(
     for gaze: HeadGaze,
     radius: CGFloat,

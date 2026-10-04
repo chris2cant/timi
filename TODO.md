@@ -4,6 +4,23 @@ Dernière mise à jour : 2026-10-04
 
 ## Terminé
 
+- [x] Ajouter la dictée globale locale avec raccourci hybride configurable et `CGEventTap`.
+- [x] Permettre au raccourci de fonctionner en écoute seule avant l’autorisation Accessibilité, puis réinstaller automatiquement le tap neutralisant.
+- [x] Fiabiliser le raccourci avec l’enregistrement système macOS, afficher son état réel et proposer un test direct dans Réglages, avec `CGEventTap` en repli.
+- [x] Ne plus interrompre chaque dictée globale avec la demande Accessibilité ; conserver le repli presse-papiers et la demande explicite dans Réglages.
+- [x] Partager un `DictationCoordinator` entre la conversation et la dictée globale.
+- [x] Afficher dans la tête les états écoute, silence, finalisation, nettoyage, insertion, succès et erreur.
+- [x] Piloter une onde à neuf barres par le RMS réel, lissée et limitée à 20 Hz, sans conserver l’audio.
+- [x] Détecter trois secondes de silence et 1,5 seconde sans buffer microphone.
+- [x] Finaliser réellement `SpeechAnalyzer` avant de terminer la tâche de résultats.
+- [x] Demander alternatives et confiance et injecter jusqu’à 200 termes via `AnalysisContext`.
+- [x] Nettoyer avec une session Apple Intelligence indépendante, validation de sortie, timeout et repli conservateur.
+- [x] Insérer au focus courant par collage natif AX, avec repli presse-papiers et exclusion des champs sécurisés.
+- [x] Ajouter le catalogue JSON atomique de vocabulaire, corrections et historique limité à 100 entrées / 30 jours.
+- [x] Ajouter les réglages Raccourci, Nettoyage, Vocabulaire et Historique et la correction confirmée.
+- [x] Ajouter les annonces VoiceOver et une variante d’onde pour Réduire les animations.
+- [x] Tester RMS, lissage, nettoyage, raccourci hybride, rétention, corruption et persistance du catalogue.
+
 - [x] Créer l'application native macOS SwiftUI/AppKit sans dépendance externe.
 - [x] Afficher Timi dans un `NSPanel` transparent, sans barre de titre et non activant.
 - [x] Aligner le visage sur la référence : écran noir, yeux verticaux et sourire courbe lumineux.
@@ -56,8 +73,20 @@ Dernière mise à jour : 2026-10-04
 - [x] Revenir à un Timi noir unique avec ses yeux sphériques animés, sans personnalisation de forme ou de couleur.
 - [x] Retirer la bordure, les raccords et leur marge de dessin afin de retrouver le `NSPanel` simple de 148 × 104 pt.
 - [x] Adapter la silhouette avec des raccords concaves extérieurs façon notch lorsque Timi est collé à un bord, y compris dans les coins.
+- [x] Dimensionner le masque du contenu sur le panneau complet pour éviter de rogner les yeux et les états de dictée.
+- [x] Faire suivre le curseur par les yeux (lecture de `NSEvent.mouseLocation`, sans permission), avec lissage et retour à la dérive si Timi est masqué.
 
 ## À valider manuellement
+
+- [ ] Autoriser Microphone, Reconnaissance vocale, Accessibilité et Surveillance de l’entrée sur une installation neuve.
+- [ ] Valider appui bref, maintien, second appui et les trois raccourcis configurables hors de Timi.
+- [ ] Vérifier le conflit `⌃ Espace` avec le changement de source de saisie macOS.
+- [ ] Tester collage et restauration du presse-papiers dans TextEdit, Slack, Gmail, Xcode et un `contenteditable`.
+- [ ] Vérifier les replis sans focus, en lecture seule, champ sécurisé et Secure Input actif.
+- [ ] Changer volontairement de focus pendant « Je nettoie… » et confirmer la destination finale.
+- [ ] Débrancher/changer le microphone et confirmer « Micro interrompu » avec le brut dans le presse-papiers.
+- [ ] Valider VoiceOver et Réduire les animations pour tous les états de dictée.
+- [ ] Vérifier hors ligne, modèles déjà téléchargés, qu’aucune donnée ne quitte le Mac.
 
 - [x] Confirmer que le nouveau drag natif reste exactement sous le curseur lors de mouvements rapides.
 - [ ] Confirmer que la respiration est visible mais reste agréable sur une longue durée.
@@ -82,8 +111,10 @@ Dernière mise à jour : 2026-10-04
 - [ ] Télécharger une voix française Premium puis confirmer sa sélection et la qualité de lecture des réponses.
 - [ ] Vérifier que le bouton d'arrêt vocal s'active pendant la lecture et coupe immédiatement la réponse.
 - [ ] Valider à taille réelle le mouvement sphérique des yeux de gauche à droite et leur compression en perspective.
+- [ ] Valider le suivi du curseur : sens vertical, amplitude, fluidité, autre écran et autre app au premier plan ; au repos avec « Réduire les animations ».
 - [ ] Confirmer à taille réelle que la silhouette noire fixe reste nette et affleure correctement chaque bord.
 - [ ] Valider visuellement les raccords façon notch sur les quatre bords et dans les quatre coins.
+- [ ] Confirmer que les yeux, le libellé et l’onde de dictée restent entièrement visibles pendant la respiration et le survol.
 
 ## Prochaines étapes proposées
 

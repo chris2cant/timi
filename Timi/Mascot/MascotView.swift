@@ -5,6 +5,7 @@ final class MascotInteractionState: ObservableObject {
   @Published private(set) var clickCount = 0
   @Published private(set) var attachmentEdges: MascotAttachmentEdges = []
   var activationHandler: (() -> Void)?
+  var pointerOffsetProvider: (() -> CGVector?)?
 
   func activate() {
     clickCount += 1
@@ -16,14 +17,43 @@ final class MascotInteractionState: ObservableObject {
   }
 }
 
+/// Smooths the gaze between frames. Reference type on purpose: it is mutated
+/// from the `TimelineView` body and must not trigger SwiftUI invalidations.
+@MainActor
+private final class GazeSmoother {
+  private var current: HeadGaze?
+  private var lastTime: TimeInterval?
+  private let responseTime: TimeInterval = 0.08
+
+  func smoothed(toward target: HeadGaze, at time: TimeInterval) -> HeadGaze {
+    defer { lastTime = time }
+    guard let current, let lastTime else {
+      self.current = target
+      return target
+    }
+
+    let dt = max(0, min(time - lastTime, 0.25))
+    let k = CGFloat(1 - exp(-dt / responseTime))
+    let next = HeadGaze(
+      yaw: current.yaw + (target.yaw - current.yaw) * k,
+      pitch: current.pitch + (target.pitch - current.pitch) * k,
+      roll: current.roll + (target.roll - current.roll) * k
+    )
+    self.current = next
+    return next
+  }
+}
+
 struct MascotView: View {
   @ObservedObject var interactionState: MascotInteractionState
+  @ObservedObject var dictationCoordinator: DictationCoordinator
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   @State private var isBreathing = false
   @State private var isHovering = false
   @State private var isReacting = false
   @State private var eyesAreOpen = true
+  @State private var gazeSmoother = GazeSmoother()
 
   private let cornerRadius: CGFloat = 22
 
@@ -39,7 +69,20 @@ struct MascotView: View {
       silhouette
         .fill(.black)
 
-      sphericalEyes
+      Group {
+        if dictationCoordinator.phase == .idle {
+          sphericalEyes
+        } else {
+          dictationStatus
+        }
+      }
+        // The silhouette is expressed in the panel's coordinate space because it
+        // includes the drawing margin used by the edge attachments. Keep the mask
+        // at that size even when its content has a smaller intrinsic frame.
+        .frame(
+          width: MascotWindowController.windowSize.width,
+          height: MascotWindowController.windowSize.height
+        )
         .mask {
           silhouette
         }
@@ -77,22 +120,116 @@ struct MascotView: View {
     .animation(reduceMotion ? nil : .spring(duration: 0.22), value: isHovering)
     .animation(reduceMotion ? nil : .spring(duration: 0.2), value: isReacting)
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel("Timi mascot")
-    .accessibilityHint("Activate to open the conversation. Use Settings to move Timi.")
+    .accessibilityLabel(accessibilityLabel)
+    .accessibilityHint(
+      dictationCoordinator.phase.isActive
+        ? "Activer pour arrêter la dictée."
+        : "Activer pour ouvrir la conversation. Utiliser Réglages pour déplacer Timi."
+    )
     .accessibilityAddTraits(.isButton)
     .accessibilityAction {
       interactionState.activate()
     }
   }
 
+  private var dictationStatus: some View {
+    VStack(spacing: 5) {
+      HStack(spacing: 5) {
+        statusSymbol
+        Text(statusTitle)
+          .font(.system(size: 13, weight: .semibold, design: .rounded))
+          .lineLimit(1)
+      }
+      .foregroundStyle(statusColor)
+
+      if dictationCoordinator.phase == .listening || dictationCoordinator.phase == .preparing {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+          Text(elapsedText)
+            .font(.system(size: 11, weight: .medium, design: .monospaced))
+            .foregroundStyle(.white.opacity(0.78))
+        }
+
+        HStack(alignment: .center, spacing: 3) {
+          ForEach(Array(dictationCoordinator.meterLevels.enumerated()), id: \.offset) { _, level in
+            Capsule()
+              .fill(dictationCoordinator.isSilent ? Color.orange : Color.white)
+              .frame(width: 5, height: barHeight(level))
+              .animation(
+                reduceMotion ? .linear(duration: 0.12) : .easeOut(duration: 0.08),
+                value: reduceMotion ? (level > 0.15 ? Float(1) : Float(0)) : level
+              )
+          }
+        }
+        .frame(height: 25)
+
+        if dictationCoordinator.isSilent {
+          Text("Aucun son détecté")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(.orange)
+        }
+      }
+    }
+    .frame(
+      width: MascotWindowController.mascotSize.width - 22,
+      height: MascotWindowController.mascotSize.height - 14
+    )
+  }
+
+  @ViewBuilder
+  private var statusSymbol: some View {
+    switch dictationCoordinator.phase {
+    case .listening, .preparing:
+      Circle().fill(.green).frame(width: 7, height: 7)
+    case .succeeded:
+      Image(systemName: "checkmark.circle.fill")
+    case .failed:
+      Image(systemName: "exclamationmark.triangle.fill")
+    default:
+      EmptyView()
+    }
+  }
+
+  private var statusTitle: String {
+    if dictationCoordinator.isSilent { return "J’écoute" }
+    return switch dictationCoordinator.phase {
+    case .idle: ""
+    case .preparing: "Je prépare…"
+    case .listening: "J’écoute"
+    case .finalizing: "Je transcris…"
+    case .refining: "Je nettoie…"
+    case .inserting: "J’insère…"
+    case .succeeded(.pasted): "Collé"
+    case .succeeded(.copied): "Copié"
+    case .failed(let message): message
+    }
+  }
+
+  private var statusColor: Color {
+    if dictationCoordinator.isSilent { return .orange }
+    if case .failed = dictationCoordinator.phase { return .red }
+    return .white
+  }
+
+  private var elapsedText: String {
+    let seconds = Int(Date().timeIntervalSince(dictationCoordinator.startedAt ?? .now))
+    return String(format: "%02d:%02d", seconds / 60, seconds % 60)
+  }
+
+  private func barHeight(_ level: Float) -> CGFloat {
+    let displayedLevel = reduceMotion ? (level > 0.15 ? 0.55 : 0.08) : level
+    return 3 + CGFloat(displayedLevel) * 22
+  }
+
+  private var accessibilityLabel: String {
+    statusTitle.isEmpty ? "Timi" : "Timi, \(statusTitle)"
+  }
+
   private var sphericalEyes: some View {
     TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { timeline in
+      let gaze = currentGaze(at: timeline.date.timeIntervalSinceReferenceDate)
       Canvas { context, size in
         let projectionRadius = min(size.width, size.height) / 2
         let eyeScale: CGFloat = 72
-        let gaze = reduceMotion
-          ? EyeProjection.restingGaze
-          : EyeProjection.wanderingGaze(at: timeline.date.timeIntervalSinceReferenceDate)
         let eyes = EyeProjection.eyes(for: gaze, radius: projectionRadius)
         let width = EyeProjection.eyeWidth * eyeScale
         let height = EyeProjection.eyeHeight * eyeScale
@@ -131,6 +268,14 @@ struct MascotView: View {
     )
     .animation(.easeInOut(duration: 0.09), value: eyesAreOpen)
     .accessibilityHidden(true)
+  }
+
+  private func currentGaze(at time: TimeInterval) -> HeadGaze {
+    if reduceMotion { return EyeProjection.restingGaze }
+
+    let target = interactionState.pointerOffsetProvider?().map(EyeProjection.gaze(towardOffset:))
+      ?? EyeProjection.wanderingGaze(at: time)
+    return gazeSmoother.smoothed(toward: target, at: time)
   }
 
   private func motionScale(breathing: CGFloat, interaction: CGFloat) -> CGFloat {
@@ -352,26 +497,5 @@ private struct MascotSilhouette: Shape {
       verticalPoint: CGPoint(x: rect.minX, y: rect.maxY - radius),
       controlPoint: CGPoint(x: rect.minX, y: rect.maxY)
     )
-  }
-}
-
-private struct MascotPreviewBackground: View {
-  var body: some View {
-    ZStack {
-      LinearGradient(
-        colors: [.purple, .pink],
-        startPoint: .topTrailing,
-        endPoint: .bottomLeading
-      )
-
-      MascotView(interactionState: MascotInteractionState())
-    }
-    .frame(width: 260, height: 180)
-  }
-}
-
-struct MascotView_Previews: PreviewProvider {
-  static var previews: some View {
-    MascotPreviewBackground()
   }
 }

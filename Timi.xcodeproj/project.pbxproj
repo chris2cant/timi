@@ -27,6 +27,12 @@
 		A10000000000000000000012 /* SpeechOutputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* SpeechOutputController.swift */; };
 		A10000000000000000000013 /* EyeProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* EyeProjection.swift */; };
 		A10000000000000000000014 /* EyeProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* EyeProjectionTests.swift */; };
+		B10000000000000000000101 /* DictationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000101 /* DictationModels.swift */; };
+		B10000000000000000000102 /* DictationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000102 /* DictationStore.swift */; };
+		B10000000000000000000103 /* TextInsertionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000103 /* TextInsertionService.swift */; };
+		B10000000000000000000104 /* GlobalShortcutMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000104 /* GlobalShortcutMonitor.swift */; };
+		B10000000000000000000105 /* DictationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000105 /* DictationCoordinator.swift */; };
+		B10000000000000000000106 /* DictationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000106 /* DictationTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,6 +69,12 @@
 		A20000000000000000000015 /* SpeechOutputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechOutputController.swift; sourceTree = "<group>"; };
 		A20000000000000000000016 /* EyeProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EyeProjection.swift; sourceTree = "<group>"; };
 		A20000000000000000000017 /* EyeProjectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EyeProjectionTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000101 /* DictationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationModels.swift; sourceTree = "<group>"; };
+		B20000000000000000000102 /* DictationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationStore.swift; sourceTree = "<group>"; };
+		B20000000000000000000103 /* TextInsertionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInsertionService.swift; sourceTree = "<group>"; };
+		B20000000000000000000104 /* GlobalShortcutMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalShortcutMonitor.swift; sourceTree = "<group>"; };
+		B20000000000000000000105 /* DictationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCoordinator.swift; sourceTree = "<group>"; };
+		B20000000000000000000106 /* DictationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -99,6 +111,7 @@
 				A2000000000000000000000C /* Assets.xcassets */,
 				A70000000000000000000003 /* App */,
 				A70000000000000000000008 /* Chat */,
+				B70000000000000000000101 /* Dictation */,
 				A70000000000000000000004 /* Mascot */,
 				A70000000000000000000005 /* Settings */,
 			);
@@ -142,6 +155,7 @@
 				A20000000000000000000012 /* ChatPositionCalculatorTests.swift */,
 				A20000000000000000000009 /* PositionCalculatorTests.swift */,
 				A2000000000000000000000D /* AppStateTests.swift */,
+				B20000000000000000000106 /* DictationTests.swift */,
 			);
 			path = TimiTests;
 			sourceTree = "<group>";
@@ -166,6 +180,18 @@
 				A20000000000000000000011 /* ChatWindowController.swift */,
 			);
 			path = Chat;
+			sourceTree = "<group>";
+		};
+		B70000000000000000000101 /* Dictation */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000101 /* DictationModels.swift */,
+				B20000000000000000000102 /* DictationStore.swift */,
+				B20000000000000000000103 /* TextInsertionService.swift */,
+				B20000000000000000000104 /* GlobalShortcutMonitor.swift */,
+				B20000000000000000000105 /* DictationCoordinator.swift */,
+			);
+			path = Dictation;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -282,6 +308,11 @@
 				A10000000000000000000012 /* SpeechOutputController.swift in Sources */,
 				A1000000000000000000000E /* ChatView.swift in Sources */,
 				A1000000000000000000000F /* ChatWindowController.swift in Sources */,
+				B10000000000000000000101 /* DictationModels.swift in Sources */,
+				B10000000000000000000102 /* DictationStore.swift in Sources */,
+				B10000000000000000000103 /* TextInsertionService.swift in Sources */,
+				B10000000000000000000104 /* GlobalShortcutMonitor.swift in Sources */,
+				B10000000000000000000105 /* DictationCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -293,6 +324,7 @@
 				A10000000000000000000009 /* PositionCalculatorTests.swift in Sources */,
 				A1000000000000000000000B /* AppStateTests.swift in Sources */,
 				A10000000000000000000010 /* ChatPositionCalculatorTests.swift in Sources */,
+				B10000000000000000000106 /* DictationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -416,6 +448,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Timi utilise le microphone uniquement pendant la dictée de tes questions.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Timi transcrit localement ta voix pendant une dictée.";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.Timi;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -440,6 +473,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Timi utilise le microphone uniquement pendant la dictée de tes questions.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Timi transcrit localement ta voix pendant une dictée.";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.Timi;
 				PRODUCT_NAME = "$(TARGET_NAME)";

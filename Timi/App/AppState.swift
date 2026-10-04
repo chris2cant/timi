@@ -1,4 +1,5 @@
 import Combine
+import CoreGraphics
 import Foundation
 
 enum DictationLanguage: String, CaseIterable, Identifiable {
@@ -24,6 +25,30 @@ enum DictationLanguage: String, CaseIterable, Identifiable {
   }
 }
 
+enum DictationShortcut: String, CaseIterable, Identifiable {
+  case controlSpace
+  case controlOptionSpace
+  case commandShiftSpace
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .controlSpace: "⌃ Espace"
+    case .controlOptionSpace: "⌃⌥ Espace"
+    case .commandShiftSpace: "⌘⇧ Espace"
+    }
+  }
+
+  var eventFlags: CGEventFlags {
+    switch self {
+    case .controlSpace: [.maskControl]
+    case .controlOptionSpace: [.maskControl, .maskAlternate]
+    case .commandShiftSpace: [.maskCommand, .maskShift]
+    }
+  }
+}
+
 @MainActor
 final class AppState: ObservableObject {
   private enum Keys {
@@ -34,6 +59,8 @@ final class AppState: ObservableObject {
     static let mascotDisplayUUID = "mascotDisplayUUID"
     static let speechVoiceIdentifier = "speechVoiceIdentifier"
     static let dictationLanguage = "dictationLanguage"
+    static let dictationCleanupEnabled = "dictationCleanupEnabled"
+    static let dictationShortcut = "dictationShortcut"
   }
 
   @Published private(set) var position: MascotPosition
@@ -53,6 +80,17 @@ final class AppState: ObservableObject {
       defaults.set(dictationLanguage.rawValue, forKey: Keys.dictationLanguage)
     }
   }
+  @Published var dictationCleanupEnabled: Bool {
+    didSet {
+      defaults.set(dictationCleanupEnabled, forKey: Keys.dictationCleanupEnabled)
+    }
+  }
+  @Published var dictationShortcut: DictationShortcut {
+    didSet {
+      defaults.set(dictationShortcut.rawValue, forKey: Keys.dictationShortcut)
+      dictationShortcutDidChange?(dictationShortcut)
+    }
+  }
   @Published var isVisible: Bool {
     didSet {
       defaults.set(isVisible, forKey: Keys.mascotIsVisible)
@@ -63,6 +101,7 @@ final class AppState: ObservableObject {
   private let defaults: UserDefaults
   var placementDidChange: ((MascotPosition, CGSize, String?) -> Void)?
   var visibilityDidChange: ((Bool) -> Void)?
+  var dictationShortcutDidChange: ((DictationShortcut) -> Void)?
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
@@ -76,6 +115,9 @@ final class AppState: ObservableObject {
     speechVoiceIdentifier = defaults.string(forKey: Keys.speechVoiceIdentifier)
     dictationLanguage = defaults.string(forKey: Keys.dictationLanguage)
       .flatMap(DictationLanguage.init(rawValue:)) ?? .french
+    dictationCleanupEnabled = defaults.object(forKey: Keys.dictationCleanupEnabled) as? Bool ?? true
+    dictationShortcut = defaults.string(forKey: Keys.dictationShortcut)
+      .flatMap(DictationShortcut.init(rawValue:)) ?? .controlSpace
     isVisible = defaults.object(forKey: Keys.mascotIsVisible) as? Bool ?? true
   }
 

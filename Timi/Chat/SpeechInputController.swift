@@ -10,6 +10,10 @@ final class SpeechInputController: ObservableObject {
   @Published private(set) var statusMessage: String?
 
   var onTranscriptChange: ((String) -> Void)?
+  var onMeterChange: ((AudioMeterSnapshot) -> Void)?
+  var onFinished: ((String) -> Void)?
+  var onFailure: ((String, String) -> Void)?
+  var onAlternativesChange: (([String]) -> Void)?
 
   var isActive: Bool {
     isRecording || isPreparing
@@ -20,6 +24,11 @@ final class SpeechInputController: ObservableObject {
   private var preparationTask: Task<Void, Never>?
   private var finalizedTranscript = ""
   private var volatileTranscript = ""
+
+  var transcript: String {
+    (finalizedTranscript + volatileTranscript)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+  }
 
   deinit {
     preparationTask?.cancel()
@@ -34,7 +43,7 @@ final class SpeechInputController: ObservableObject {
     }
   }
 
-  func start(locale: Locale) {
+  func start(locale: Locale, contextualStrings: [String] = []) {
     guard !isActive else { return }
 
     isPreparing = true
@@ -53,17 +62,17 @@ final class SpeechInputController: ObservableObject {
         try Task.checkCancellation()
         if SpeechTranscriber.isAvailable,
            let supportedLocale = await SpeechTranscriber.supportedLocale(equivalentTo: locale) {
-          let transcriber = SpeechTranscriber(
-            locale: supportedLocale,
-            preset: .progressiveTranscription
-          )
-          try await begin(using: transcriber)
+          var preset = SpeechTranscriber.Preset.progressiveTranscription
+          preset.reportingOptions.insert(.alternativeTranscriptions)
+          preset.attributeOptions.insert(.transcriptionConfidence)
+          let transcriber = SpeechTranscriber(locale: supportedLocale, preset: preset)
+          try await begin(using: transcriber, contextualStrings: contextualStrings)
         } else if let supportedLocale = await DictationTranscriber.supportedLocale(equivalentTo: locale) {
           let transcriber = DictationTranscriber(
             locale: supportedLocale,
             preset: .progressiveShortDictation
           )
-          try await begin(using: transcriber)
+          try await begin(using: transcriber, contextualStrings: contextualStrings)
         } else {
           throw SpeechInputError.unsupportedLocale
         }
@@ -87,25 +96,36 @@ final class SpeechInputController: ObservableObject {
     statusMessage = "Finalisation de la dictée…"
 
     let pipeline = pipeline
+    let resultsTask = resultsTask
     self.pipeline = nil
 
     Task { [weak self] in
       do {
         try await pipeline?.stop(finalize: true)
+        await resultsTask?.value
       } catch {
         guard !Task.isCancelled else { return }
         self?.fail(with: error)
         return
       }
-      self?.reset(keepingTranscript: true)
+      guard let self else { return }
+      let transcript = self.transcript
+      self.reset(keepingTranscript: true)
+      self.onFinished?(transcript)
     }
   }
 
-  private func begin(using transcriber: SpeechTranscriber) async throws {
+  private func begin(
+    using transcriber: SpeechTranscriber,
+    contextualStrings: [String]
+  ) async throws {
     resultsTask = Task { [weak self] in
       do {
         for try await result in transcriber.results {
           guard !Task.isCancelled else { return }
+          self?.onAlternativesChange?(
+            result.alternatives.prefix(2).map { String($0.characters) }
+          )
           self?.receive(text: String(result.text.characters), isFinal: result.isFinal)
         }
       } catch {
@@ -114,14 +134,20 @@ final class SpeechInputController: ObservableObject {
       }
     }
 
-    try await beginAnalysis(modules: [transcriber])
+    try await beginAnalysis(modules: [transcriber], contextualStrings: contextualStrings)
   }
 
-  private func begin(using transcriber: DictationTranscriber) async throws {
+  private func begin(
+    using transcriber: DictationTranscriber,
+    contextualStrings: [String]
+  ) async throws {
     resultsTask = Task { [weak self] in
       do {
         for try await result in transcriber.results {
           guard !Task.isCancelled else { return }
+          self?.onAlternativesChange?(
+            result.alternatives.prefix(2).map { String($0.characters) }
+          )
           self?.receive(text: String(result.text.characters), isFinal: result.isFinal)
         }
       } catch {
@@ -130,10 +156,13 @@ final class SpeechInputController: ObservableObject {
       }
     }
 
-    try await beginAnalysis(modules: [transcriber])
+    try await beginAnalysis(modules: [transcriber], contextualStrings: contextualStrings)
   }
 
-  private func beginAnalysis(modules: [any SpeechModule]) async throws {
+  private func beginAnalysis(
+    modules: [any SpeechModule],
+    contextualStrings: [String]
+  ) async throws {
     try Task.checkCancellation()
 
     let assetStatus = await AssetInventory.status(forModules: modules)
@@ -156,7 +185,11 @@ final class SpeechInputController: ObservableObject {
 
     let pipeline = SpeechAudioPipeline()
     self.pipeline = pipeline
-    try await pipeline.start(modules: modules)
+    try await pipeline.start(modules: modules, contextualStrings: contextualStrings) { [weak self] snapshot in
+      Task { @MainActor [weak self] in
+        self?.onMeterChange?(snapshot)
+      }
+    }
     try Task.checkCancellation()
 
     preparationTask = nil
@@ -206,6 +239,7 @@ final class SpeechInputController: ObservableObject {
 
     reset(keepingTranscript: true)
     statusMessage = message
+    onFailure?(message, transcript)
   }
 
   private func reset(keepingTranscript: Bool = false) {
@@ -233,7 +267,11 @@ private actor SpeechAudioPipeline {
   private var inputContinuation: AsyncStream<AnalyzerInput>.Continuation?
   private var hasInputTap = false
 
-  func start(modules: [any SpeechModule]) async throws {
+  func start(
+    modules: [any SpeechModule],
+    contextualStrings: [String],
+    onMeter: @escaping @Sendable (AudioMeterSnapshot) -> Void
+  ) async throws {
     do {
       guard let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(
         compatibleWith: modules
@@ -251,8 +289,14 @@ private actor SpeechAudioPipeline {
       }
 
       let converter = try AudioBufferConverter(from: inputFormat, to: analyzerFormat)
+      let meter = AudioMeterProcessor(onSnapshot: onMeter)
       let (inputSequence, continuation) = AsyncStream<AnalyzerInput>.makeStream()
       let analyzer = SpeechAnalyzer(modules: modules)
+      if !contextualStrings.isEmpty {
+        let context = AnalysisContext()
+        context.contextualStrings[.general] = Array(contextualStrings.prefix(200))
+        try await analyzer.setContext(context)
+      }
 
       self.analyzer = analyzer
       audioEngine = engine
@@ -262,6 +306,7 @@ private actor SpeechAudioPipeline {
       try Task.checkCancellation()
 
       inputNode.installTap(onBus: 0, bufferSize: 1_024, format: inputFormat) { buffer, _ in
+        meter.consume(buffer)
         do {
           for input in try converter.convert(buffer) {
             continuation.yield(input)
@@ -303,6 +348,37 @@ private actor SpeechAudioPipeline {
     inputContinuation?.finish()
     inputContinuation = nil
     audioEngine = nil
+  }
+}
+
+private final class AudioMeterProcessor: @unchecked Sendable {
+  private let lock = NSLock()
+  private var smoother = AudioLevelSmoother()
+  private var lastPublish = Date.distantPast
+  private let onSnapshot: @Sendable (AudioMeterSnapshot) -> Void
+
+  init(onSnapshot: @escaping @Sendable (AudioMeterSnapshot) -> Void) {
+    self.onSnapshot = onSnapshot
+  }
+
+  func consume(_ buffer: AVAudioPCMBuffer) {
+    let now = Date()
+    guard let channel = buffer.floatChannelData?.pointee else {
+      onSnapshot(AudioMeterSnapshot(level: 0, lastBufferDate: now))
+      return
+    }
+    let samples = UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))
+    let rms = AudioLevelMeter.rootMeanSquare(samples)
+
+    lock.lock()
+    let level = smoother.push(rms: rms)
+    let shouldPublish = now.timeIntervalSince(lastPublish) >= 0.05
+    if shouldPublish { lastPublish = now }
+    lock.unlock()
+
+    if shouldPublish {
+      onSnapshot(AudioMeterSnapshot(level: level, lastBufferDate: now))
+    }
   }
 }
 

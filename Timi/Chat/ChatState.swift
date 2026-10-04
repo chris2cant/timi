@@ -28,6 +28,7 @@ final class ChatState: ObservableObject {
   @Published private(set) var isSpeaking = false
 
   let speechInput: SpeechInputController
+  private let dictationCoordinator: DictationCoordinator
   private let speechOutput = SpeechOutputController()
   private let appState: AppState
 
@@ -41,10 +42,11 @@ final class ChatState: ObservableObject {
       && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
-  init(appState: AppState) {
+  init(appState: AppState, dictationCoordinator: DictationCoordinator) {
     self.appState = appState
-    speechInput = SpeechInputController()
-    speechInput.onTranscriptChange = { [weak self] transcript in
+    self.dictationCoordinator = dictationCoordinator
+    speechInput = dictationCoordinator.speechInput
+    dictationCoordinator.onConversationTranscript = { [weak self] transcript in
       guard let self else { return }
       let separator = inputBeforeDictation.isEmpty || transcript.isEmpty ? "" : " "
       input = inputBeforeDictation + separator + transcript
@@ -98,12 +100,14 @@ final class ChatState: ObservableObject {
   func toggleDictation() {
     if !speechInput.isActive {
       inputBeforeDictation = input.trimmingCharacters(in: .whitespacesAndNewlines)
+      dictationCoordinator.start(destination: .conversation)
+    } else {
+      dictationCoordinator.stop()
     }
-    speechInput.toggle(locale: appState.dictationLanguage.locale)
   }
 
   func stopDictation() {
-    speechInput.stop()
+    if speechInput.isActive { dictationCoordinator.stop() }
   }
 
   func stopSpeaking() {

@@ -66,6 +66,16 @@ After streaming completes, `SpeechOutputController` reads the final response thr
 
 Microphone capture requires `NSMicrophoneUsageDescription` and the Hardened Runtime audio-input entitlement. The entitlement is included now; public distribution will still require the normal Developer ID or App Store signing, sandbox, and notarization review.
 
+`DictationCoordinator` is the single state owner shared by the conversation composer and global dictation. The global path uses a Core Graphics event tap because an ordinary SwiftUI keyboard shortcut cannot receive and neutralize a chord while another application is active. A short press toggles and a 280 ms hold records until key-up; the pure state machine rejects autorepeat. Input Monitoring is therefore requested separately and the default `Control-Space` conflict with macOS input-source shortcuts is reported without changing System Settings.
+
+The audio tap computes RMS from each transient `AVAudioPCMBuffer`, smooths attack/release, and publishes only a normalized level at no more than 20 Hz. It retains no samples. The last published buffer timestamp also feeds a 1.5-second watchdog; silence based on low RMS remains distinct and is reported after three seconds. `SpeechAnalyzer` receives up to 200 enabled catalog terms through `AnalysisContext`, and transcription explicitly requests alternatives and confidence attributes.
+
+Global cleanup uses a fresh `LanguageModelSession` prepared while listening. Its prompt receives the raw transcript, at most 500 UTF-16 units around the live cursor, two recognition alternatives, exact correction rules, and preferred terms. The cursor context is never persisted. Empty, conversational, or disproportionate model output is rejected, and cancellation after eight seconds falls back to exact replacements plus conservative deterministic cleanup.
+
+AppKit Accessibility APIs inspect the focused element only at insertion time, so an intentional focus change during cleanup is respected. Secure Input, secure fields, read-only fields, missing trust, and inaccessible content all fall back to the clipboard. For writable fields Timi posts a native Command-V event, which is more compatible with Slack, Gmail, and web `contenteditable` controls than assigning `AXValue`; the previous pasteboard items are restored only when the focused AX value confirms the paste. If confirmation is impossible, Timi conservatively leaves the transcript in the clipboard and reports « Copié ». These system-wide event and Accessibility primitives are the reason App Sandbox remains disabled, and they must be revisited before signing, notarization, or Mac App Store distribution.
+
+The versioned JSON catalog is written atomically in Application Support. It contains only vocabulary, confirmed correction rules, and raw/refined/corrected text history. History is pruned to 100 records and 30 days; application context, pasteboard contents, alternatives, and audio are excluded.
+
 - [Speech framework](https://developer.apple.com/documentation/speech)
 - [SpeechTranscriber](https://developer.apple.com/documentation/speech/speechtranscriber)
 - [WWDC25: Bring advanced speech-to-text to your app with SpeechAnalyzer](https://developer.apple.com/videos/play/wwdc2025/277/)

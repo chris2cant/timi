@@ -6,7 +6,13 @@ struct TimiApp: App {
 
   var body: some Scene {
     Settings {
-      SettingsView(appState: appDelegate.appState)
+      SettingsView(
+        appState: appDelegate.appState,
+        dictationStore: appDelegate.dictationStore,
+        shortcutMonitor: appDelegate.shortcutMonitor,
+        requestShortcutPermission: appDelegate.requestGlobalShortcutPermission,
+        testGlobalDictation: appDelegate.testGlobalDictation
+      )
     }
   }
 }

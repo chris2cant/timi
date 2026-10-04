@@ -13,6 +13,8 @@ final class AppStateTests: XCTestCase {
       XCTAssertNil(state.displayUUID)
       XCTAssertNil(state.speechVoiceIdentifier)
       XCTAssertEqual(state.dictationLanguage, .french)
+      XCTAssertTrue(state.dictationCleanupEnabled)
+      XCTAssertEqual(state.dictationShortcut, .controlSpace)
       XCTAssertTrue(state.isVisible)
     }
   }
@@ -59,6 +61,25 @@ final class AppStateTests: XCTestCase {
       state.dictationLanguage = .automatic
       XCTAssertEqual(defaults.string(forKey: "dictationLanguage"), "automatic")
       XCTAssertEqual(AppState(defaults: defaults).dictationLanguage, .automatic)
+    }
+  }
+
+  func testDictationCleanupPreferencePersists() {
+    withDefaults { defaults in
+      let state = AppState(defaults: defaults)
+      state.dictationCleanupEnabled = false
+      XCTAssertFalse(AppState(defaults: defaults).dictationCleanupEnabled)
+    }
+  }
+
+  func testDictationShortcutPersistsAndNotifies() {
+    withDefaults { defaults in
+      let state = AppState(defaults: defaults)
+      var observed: DictationShortcut?
+      state.dictationShortcutDidChange = { observed = $0 }
+      state.dictationShortcut = .controlOptionSpace
+      XCTAssertEqual(observed, .controlOptionSpace)
+      XCTAssertEqual(AppState(defaults: defaults).dictationShortcut, .controlOptionSpace)
     }
   }
 

@@ -90,10 +90,13 @@ final class MascotWindowController: NSObject {
 
   var offsetDidChange: ((CGSize, String?) -> Void)?
 
-  init(appState: AppState) {
+  init(appState: AppState, dictationCoordinator: DictationCoordinator) {
     let interactionState = MascotInteractionState()
     self.interactionState = interactionState
-    chatWindowController = ChatWindowController(appState: appState)
+    chatWindowController = ChatWindowController(
+      appState: appState,
+      dictationCoordinator: dictationCoordinator
+    )
     panel = NSPanel(
       contentRect: CGRect(origin: .zero, size: Self.windowSize),
       styleMask: [.borderless, .nonactivatingPanel],
@@ -103,11 +106,27 @@ final class MascotWindowController: NSObject {
     super.init()
 
     interactionState.activationHandler = { [weak self] in
-      self?.toggleChat()
+      if dictationCoordinator.phase.isActive {
+        dictationCoordinator.stop()
+      } else {
+        self?.toggleChat()
+      }
+    }
+
+    // NSEvent.mouseLocation needs no permission, unlike a global event monitor;
+    // the eyes' TimelineView already ticks, so polling is enough.
+    interactionState.pointerOffsetProvider = { [weak self] in
+      guard let self, panel.isVisible else { return nil }
+      let pointer = NSEvent.mouseLocation
+      let frame = mascotFrame
+      return CGVector(dx: pointer.x - frame.midX, dy: pointer.y - frame.midY)
     }
 
     let hostingView = DraggableHostingView(
-      rootView: MascotView(interactionState: interactionState)
+      rootView: MascotView(
+        interactionState: interactionState,
+        dictationCoordinator: dictationCoordinator
+      )
     )
     hostingView.draggableRect = CGRect(
       origin: CGPoint(x: Self.drawingMargin, y: Self.drawingMargin),
