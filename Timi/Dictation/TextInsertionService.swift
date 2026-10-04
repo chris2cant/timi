@@ -1,6 +1,9 @@
 import AppKit
 import ApplicationServices
 import Carbon
+import os
+
+private let log = Logger(subsystem: "com.example.Timi", category: "insertion")
 
 struct FocusedTextContext: Sendable {
   let surroundingText: String
@@ -32,22 +35,26 @@ final class TextInsertionService {
   }
 
   func insertOrCopy(_ text: String) async -> DictationInsertionResult {
-    guard !IsSecureEventInputEnabled(), AXIsProcessTrusted(),
-          let target = focusedElement() else {
+    log.notice("insert: secureInput=\(IsSecureEventInputEnabled()) trusted=\(AXIsProcessTrusted())")
+    guard !IsSecureEventInputEnabled(), AXIsProcessTrusted() else {
       copy(text)
       return .copied
     }
-    let context = focusedContext(for: target)
-    guard context.acceptsText, !context.isSecure else {
+    // Chrome/Electron n'exposent souvent pas de champ texte via l'accessibilité :
+    // on ne bloque donc le collage que pour un champ explicitement sécurisé.
+    let target = focusedElement()
+    if let target, focusedContext(for: target).isSecure {
       copy(text)
       return .copied
     }
 
     let pasteboard = NSPasteboard.general
     let backup = PasteboardBackup(pasteboard: pasteboard)
-    let valueBeforePaste = stringAttribute(kAXValueAttribute, from: target)
+    let valueBeforePaste = target.flatMap { stringAttribute(kAXValueAttribute, from: $0) }
     copy(text)
 
+    log.notice("insert: target=\(target != nil) posting paste")
+    await waitForModifierRelease()
     guard postPasteShortcut() else {
       return .copied
     }
@@ -57,7 +64,9 @@ final class TextInsertionService {
     let valueAfterPaste = currentTarget.flatMap {
       stringAttribute(kAXValueAttribute, from: $0)
     }
-    let targetIsUnchanged = currentTarget.map { CFEqual(target, $0) } ?? false
+    let targetIsUnchanged = target.flatMap { target in
+      currentTarget.map { CFEqual(target, $0) }
+    } ?? false
     let pasteWasConfirmed = targetIsUnchanged
       && valueAfterPaste != nil
       && valueAfterPaste != valueBeforePaste
@@ -130,6 +139,16 @@ final class TextInsertionService {
   private func copy(_ text: String) {
     NSPasteboard.general.clearContents()
     NSPasteboard.general.setString(text, forType: .string)
+  }
+
+  /// Control (raccourci Control+Espace) encore enfoncé transformerait Cmd+V en Ctrl+Cmd+V.
+  private func waitForModifierRelease() async {
+    let blocking: CGEventFlags = [.maskControl, .maskAlternate, .maskShift]
+    for _ in 0..<20 {
+      let flags = CGEventSource.flagsState(.combinedSessionState)
+      if flags.isDisjoint(with: blocking) { return }
+      try? await Task.sleep(for: .milliseconds(50))
+    }
   }
 
   private func postPasteShortcut() -> Bool {
