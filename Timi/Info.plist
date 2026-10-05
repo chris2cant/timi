@@ -7,7 +7,7 @@
 	<string>https://raw.githubusercontent.com/chris2cant/timi/main/appcast.xml</string>
 	<!-- Output of scripts/generate-keys.sh. The private key stays in the macOS Keychain, never in Git. -->
 	<key>SUPublicEDKey</key>
-	<string>REPLACE_WITH_generate_keys_OUTPUT</string>
+	<string>XfuOW7JX7xAiyRCUy/nLaiWn8sWT4EBJPmyokOpZXII=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUScheduledCheckInterval</key>
