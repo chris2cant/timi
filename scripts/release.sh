@@ -79,6 +79,7 @@ previous_tag="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
 [[ -f appcast.xml ]] && cp appcast.xml "$out/appcast.xml"
 "$tools/generate_appcast" \
   --download-url-prefix "https://github.com/$OWNER/$DISTRIBUTION_REPO/releases/download/v$version/" \
+  --release-notes-url-prefix "https://github.com/$OWNER/$DISTRIBUTION_REPO/releases/download/v$version/" \
   "$out"
 cp "$out/appcast.xml" appcast.xml
 
@@ -91,7 +92,7 @@ Prepared. Nothing was pushed. Test dist/v$version/$zip_name, then:
   git add "$pbxproj" appcast.xml
   git commit -m "Release $version"
   git tag v$version
-  gh release create v$version "$out/$zip_name" --repo $OWNER/$DISTRIBUTION_REPO \\
+  gh release create v$version "$out/$zip_name" "$out/$APP_NAME-$version.md" --repo $OWNER/$DISTRIBUTION_REPO \\
     --title "$APP_NAME $version" --notes-file "$out/$APP_NAME-$version.md"
   git push origin main v$version      # publishes appcast.xml: do it AFTER the release exists
 MSG
