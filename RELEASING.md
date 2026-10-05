@@ -16,7 +16,7 @@ GitHub Releases of this same repository. Everything is HTTPS.
 4. Back up the private key outside the repo (`generate_keys -x <file>` into a password manager or encrypted volume). Never put it in the repo.
 5. Create a stable self-signed code-signing certificate (free, no Apple Developer account): Keychain Access → Certificate Assistant → Create a Certificate → name `Timi Local Signing`, type *Code Signing*. It keeps your macOS permissions (Accessibility, microphone) across updates. Do not export it into the repo.
 6. Check `scripts/release.conf` (`OWNER`, `DISTRIBUTION_REPO`, `SIGN_IDENTITY`).
-7. Before the first public release, choose a real bundle identifier (currently the placeholder `com.example.Timi`); changing it later breaks update continuity and permissions.
+7. The bundle identifier is `io.github.chris2cant.Timi`. Never change it once released: it would break update continuity and macOS permissions.
 8. On GitHub: enable 2FA, protect `main` and `v*` tags, add a CODEOWNERS entry for `appcast.xml`.
 
 ## Each release

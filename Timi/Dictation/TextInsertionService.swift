@@ -3,7 +3,7 @@ import ApplicationServices
 import Carbon
 import os
 
-private let log = Logger(subsystem: "com.example.Timi", category: "insertion")
+private let log = Logger(subsystem: "io.github.chris2cant.Timi", category: "insertion")
 
 struct FocusedTextContext: Sendable {
   let surroundingText: String

@@ -125,7 +125,7 @@ Dernière mise à jour : 2026-10-05
 
 ## Prochaines étapes proposées
 
-- [ ] Sparkle : lancer `scripts/generate-keys.sh`, renseigner `SUPublicEDKey`, créer le certificat auto-signé, choisir le vrai bundle identifier, puis valider manuellement le scénario 1.0.0 → 1.0.1 (voir `RELEASING.md`).
+- [ ] Sparkle : lancer `scripts/generate-keys.sh`, renseigner `SUPublicEDKey`, créer le certificat auto-signé, puis valider manuellement le scénario 1.0.0 → 1.0.1 (voir `RELEASING.md`).
 - [ ] Ajuster la respiration selon le retour de validation manuelle.
 - [ ] Finaliser l'icône d'application après validation visuelle aux petites tailles.
 - [ ] Ajuster la taille et le style de la bulle après validation en usage réel.

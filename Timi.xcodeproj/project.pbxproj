@@ -469,7 +469,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Timi utilise le microphone uniquement pendant la dictée de tes questions.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Timi transcrit localement ta voix pendant une dictée.";
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.Timi;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.chris2cant.Timi;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -495,7 +495,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Timi utilise le microphone uniquement pendant la dictée de tes questions.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Timi transcrit localement ta voix pendant une dictée.";
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.Timi;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.chris2cant.Timi;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -510,7 +510,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.TimiTests;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.chris2cant.TimiTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
@@ -525,7 +525,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.TimiTests;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.chris2cant.TimiTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
