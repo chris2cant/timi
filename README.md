@@ -50,4 +50,4 @@ Run the `TimiTests` test target in Xcode (`⌘U`).
 - Native Settings UI: `Timi/Settings/SettingsView.swift`
 - Native decisions and Apple references: `docs/architecture.md`
 
-There are no third-party dependencies.
+The only third-party dependency is [Sparkle](https://sparkle-project.org) 2 (Swift Package Manager), used for in-app updates: it is the de-facto standard macOS updater, verifies EdDSA signatures, and avoids writing a security-critical installer ourselves. Timi checks `appcast.xml` in this repository over HTTPS (your IP is visible to GitHub; no other data is sent) and always asks before installing. See [RELEASING.md](RELEASING.md).

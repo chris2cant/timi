@@ -4,5 +4,8 @@
 <dict>
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
+	<!-- Required for Sparkle.framework: an ad-hoc or self-signed app has no Team ID, so library validation would refuse it. Remove once Developer ID signing is adopted. -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
 </dict>
 </plist>

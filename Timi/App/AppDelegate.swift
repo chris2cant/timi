@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var mascotWindowController: MascotWindowController?
   private var menuBarController: MenuBarController?
   let shortcutMonitor = GlobalShortcutMonitor()
+  let updateManager = UpdateManager()
   private var wasHiddenBeforeDictation = false
 
   override init() {
@@ -25,7 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       dictationCoordinator: dictationCoordinator
     )
     mascotWindowController = controller
-    menuBarController = MenuBarController(appState: appState)
+    menuBarController = MenuBarController(appState: appState, updateManager: updateManager)
 
     appState.autoHideModeDidChange = { [weak controller] mode in
       controller?.setAutoHideMode(mode)

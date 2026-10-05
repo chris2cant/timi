@@ -14,3 +14,12 @@ xcuserdata/
 # Swift Package Manager
 .build/
 .swiftpm/
+
+# Release artefacts and secrets: NEVER commit a Sparkle private key or signing identity
+dist/
+*.pem
+*.p12
+*.cer
+*private*key*
+sparkle_private*
+.claude/

@@ -96,6 +96,10 @@ The mascot is exposed as an accessibility button with an explicit activation act
 
 The generated bundle declares `AppIcon` and contains the compiled `.icns`; `AppDelegate` also assigns it to `NSApplication.applicationIconImage`. Manual validation confirms that the icon appears during a normal Xcode `⌘R` launch.
 
+## Updates (Sparkle)
+
+`UpdateManager` owns one `SPUStandardUpdaterController` for the app lifetime and exposes `checkForUpdates()` and `canCheckForUpdates` to the status-item menu, the app menu and Settings. Sparkle is the only third-party dependency; the documented reason is secure, signed, user-confirmed updates without writing our own installer. Trust rests on the Sparkle EdDSA key (feed and archives signed, verified before extraction), not on Apple signing. `com.apple.security.cs.disable-library-validation` is required because a self-signed or ad-hoc app has no Team ID; remove it when moving to Developer ID and notarization. See `RELEASING.md`.
+
 ## Revisit before public release
 
 - Install the release Xcode, build/archive with warnings treated seriously, and reconfirm the deployment target.

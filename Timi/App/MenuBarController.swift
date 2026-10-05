@@ -5,11 +5,13 @@ import AppKit
 @MainActor
 final class MenuBarController: NSObject, NSMenuDelegate {
   private let appState: AppState
+  private let updateManager: UpdateManager
   private let statusItem: NSStatusItem
   private let toggleItem = NSMenuItem()
 
-  init(appState: AppState) {
+  init(appState: AppState, updateManager: UpdateManager) {
     self.appState = appState
+    self.updateManager = updateManager
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     super.init()
 
@@ -31,6 +33,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     settingsItem.target = self
     menu.addItem(settingsItem)
 
+    let updateItem = NSMenuItem(
+      title: "Rechercher des mises à jour…",
+      action: #selector(checkForUpdates),
+      keyEquivalent: ""
+    )
+    updateItem.target = self
+    menu.addItem(updateItem)
+
     menu.addItem(.separator())
 
     let quitItem = NSMenuItem(
@@ -43,6 +53,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     statusItem.menu = menu
   }
 
+  func validateMenuItem(_ item: NSMenuItem) -> Bool {
+    item.action == #selector(checkForUpdates) ? updateManager.canCheckForUpdates : true
+  }
+
   func menuNeedsUpdate(_ menu: NSMenu) {
     toggleItem.title = appState.isVisible ? "Masquer Timi" : "Afficher Timi"
   }
@@ -50,6 +64,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
   @objc
   private func toggleVisibility() {
     appState.isVisible.toggle()
+  }
+
+  @objc
+  private func checkForUpdates() {
+    updateManager.checkForUpdates()
   }
 
   @objc

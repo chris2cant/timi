@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1000000000000000000F002 /* UpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000F002 /* UpdateManager.swift */; };
+		A1000000000000000000F003 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AC000000000000000000F002 /* Sparkle */; };
 		A10000000000000000000001 /* TimiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* TimiApp.swift */; };
 		A10000000000000000000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* AppDelegate.swift */; };
 		A1000000000000000000F001 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000F001 /* MenuBarController.swift */; };
@@ -47,6 +49,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A2000000000000000000F002 /* UpdateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateManager.swift; sourceTree = "<group>"; };
+		A2000000000000000000F003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A20000000000000000000001 /* TimiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimiApp.swift; sourceTree = "<group>"; };
 		A20000000000000000000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A2000000000000000000F001 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
@@ -84,6 +88,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000000000000000000F003 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -110,6 +115,7 @@
 			isa = PBXGroup;
 			children = (
 				A20000000000000000000014 /* Timi.entitlements */,
+				A2000000000000000000F003 /* Info.plist */,
 				A2000000000000000000000C /* Assets.xcassets */,
 				A70000000000000000000003 /* App */,
 				A70000000000000000000008 /* Chat */,
@@ -126,6 +132,7 @@
 				A20000000000000000000001 /* TimiApp.swift */,
 				A20000000000000000000002 /* AppDelegate.swift */,
 				A2000000000000000000F001 /* MenuBarController.swift */,
+				A2000000000000000000F002 /* UpdateManager.swift */,
 				A20000000000000000000003 /* AppState.swift */,
 			);
 			path = App;
@@ -213,6 +220,9 @@
 			dependencies = (
 			);
 			name = Timi;
+			packageProductDependencies = (
+				AC000000000000000000F002 /* Sparkle */,
+			);
 			productName = Timi;
 			productReference = A2000000000000000000000A /* Timi.app */;
 			productType = "com.apple.product-type.application";
@@ -262,6 +272,9 @@
 				en,
 				Base,
 			);
+			packageReferences = (
+				AC000000000000000000F001 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			mainGroup = A70000000000000000000001;
 			productRefGroup = A70000000000000000000007 /* Products */;
 			projectDirPath = "";
@@ -300,6 +313,7 @@
 				A10000000000000000000001 /* TimiApp.swift in Sources */,
 				A10000000000000000000002 /* AppDelegate.swift in Sources */,
 				A1000000000000000000F001 /* MenuBarController.swift in Sources */,
+				A1000000000000000000F002 /* UpdateManager.swift in Sources */,
 				A10000000000000000000003 /* AppState.swift in Sources */,
 				A10000000000000000000004 /* MascotPosition.swift in Sources */,
 				A10000000000000000000005 /* PositionCalculator.swift in Sources */,
@@ -448,6 +462,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Timi/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Timi;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -473,6 +488,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Timi/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Timi;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -518,6 +534,25 @@
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AC000000000000000000F001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.10.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AC000000000000000000F002 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AC000000000000000000F001 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCConfigurationList section */
 		A80000000000000000000001 /* Build configuration list for PBXProject "Timi" */ = {

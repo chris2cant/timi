@@ -1,9 +1,10 @@
 # Timi — suivi du projet
 
-Dernière mise à jour : 2026-10-04
+Dernière mise à jour : 2026-10-05
 
 ## Terminé
 
+- [x] Mises à jour automatiques via Sparkle 2 (menu, Réglages, scripts de release, documentation) ; en attente de validation manuelle.
 - [x] Ajouter l’auto-hide (Désactivé / Masquer complètement / 4 pt visibles) avec délai réglable en secondes : Timi glisse contre le bord le plus proche sans écran voisin et réapparaît au survol du bord.
 - [x] Ajouter l’icône de barre des menus (`NSStatusItem`, icône template) avec Afficher/Masquer, Réglages et Quitter.
 - [x] Refaire l’icône d’app avec les deux yeux capsules de face aux proportions de `EyeProjection`.
@@ -124,6 +125,7 @@ Dernière mise à jour : 2026-10-04
 
 ## Prochaines étapes proposées
 
+- [ ] Sparkle : lancer `scripts/generate-keys.sh`, renseigner `SUPublicEDKey`, créer le certificat auto-signé, choisir le vrai bundle identifier, puis valider manuellement le scénario 1.0.0 → 1.0.1 (voir `RELEASING.md`).
 - [ ] Ajuster la respiration selon le retour de validation manuelle.
 - [ ] Finaliser l'icône d'application après validation visuelle aux petites tailles.
 - [ ] Ajuster la taille et le style de la bulle après validation en usage réel.
@@ -133,5 +135,5 @@ Dernière mise à jour : 2026-10-04
 - Capture d'écran ou intégrations agent.
 - Réseau, comptes, analytics ou infrastructure cloud.
 - Gestion avancée de plusieurs écrans.
-- Launch at login, mises à jour automatiques et distribution publique.
+- Launch at login.
 - Signature de distribution, notarisation et publication sur le Mac App Store tant que le projet reste privé.

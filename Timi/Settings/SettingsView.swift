@@ -5,6 +5,7 @@ struct SettingsView: View {
   @ObservedObject var appState: AppState
   @ObservedObject var dictationStore: DictationStore
   @ObservedObject var shortcutMonitor: GlobalShortcutMonitor
+  @ObservedObject var updateManager: UpdateManager
   let requestShortcutPermission: () -> Void
   let testGlobalDictation: () -> Void
 
@@ -35,6 +36,13 @@ struct SettingsView: View {
     .onDisappear { speechPreview.stop() }
   }
 
+  private static var versionDescription: String {
+    let info = Bundle.main.infoDictionary
+    let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+    let build = info?["CFBundleVersion"] as? String ?? "?"
+    return "\(version) (\(build))"
+  }
+
   private var generalTab: some View {
     Form {
       Section("Visibilité") {
@@ -62,6 +70,19 @@ struct SettingsView: View {
               .tint(appState.position == position ? .accentColor : nil)
           }
         }
+      }
+      Section("Mises à jour") {
+        Toggle(
+          "Vérifier automatiquement",
+          isOn: Binding(
+            get: { updateManager.automaticallyChecksForUpdates },
+            set: { updateManager.automaticallyChecksForUpdates = $0 }
+          )
+        )
+        Button("Rechercher des mises à jour…") { updateManager.checkForUpdates() }
+          .disabled(!updateManager.canCheckForUpdates)
+        Text("Version \(Self.versionDescription). Timi demande toujours avant d’installer une mise à jour.")
+          .font(.caption).foregroundStyle(.secondary)
       }
       Section("Voix de Timi") {
         Picker("Voix", selection: $appState.speechVoiceIdentifier) {
@@ -341,6 +362,7 @@ struct SettingsView_Previews: PreviewProvider {
       appState: AppState(defaults: defaults),
       dictationStore: DictationStore(fileURL: FileManager.default.temporaryDirectory.appending(path: "timi-preview.json")),
       shortcutMonitor: GlobalShortcutMonitor(),
+      updateManager: UpdateManager(),
       requestShortcutPermission: {},
       testGlobalDictation: {}
     )
