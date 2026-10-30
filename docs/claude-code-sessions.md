@@ -90,7 +90,8 @@ cp ~/.claude/settings.json ~/.claude/settings.json.bak-timi; and jq '
 Règles complémentaires :
 
 - Une session est supprimée à l'événement `SessionEnd`.
-- Une session inconnue est créée au premier événement reçu. Les sessions déjà lancées avant Timi apparaissent donc à leur prochain événement.
+- Une session inconnue est créée au premier événement reçu.
+- Au lancement, Timi lit les fichiers `~/.claude/sessions/<pid>.json` que Claude Code tient pour chaque session ouverte. Les sessions dont le process est vivant apparaissent tout de suite : « Travaille » si le fichier indique `busy`, « En attente » sinon. Ce format n’est pas documenté par Claude Code : un fichier illisible est ignoré, et la session apparaît alors à son prochain événement. Une session bloquée sur une demande n’est reconnue comme urgente qu’à son prochain événement, et le clic ne peut focus son terminal qu’après ce premier événement.
 - Un événement d'un sous-agent ne fait jamais repasser une session « A besoin de toi » à « Travaille ». Seul le fil principal lève l'alerte.
 - Les autres types de `Notification` sont ignorés.
 
@@ -128,7 +129,7 @@ Les petits Timi se masquent avec le grand Timi (menu Afficher/Masquer) et lorsqu
 
 ## Limites
 
-- Les sessions sont gardées **en mémoire uniquement**. Après un redémarrage de Timi, une session réapparaît à son prochain événement.
+- Les sessions sont gardées **en mémoire uniquement**. Après un redémarrage de Timi, les sessions ouvertes sont relues depuis `~/.claude/sessions`.
 - Une session se termine sur `SessionEnd`, à la mort du process `claude` (vérifiée toutes les 10 s), ou après 2 h sans événement lorsque le PID n'est pas connu.
 - L'app **n'est pas sandboxée** : le socket dans `~/Library/Application Support` et le lancement des CLI herdr et cmux en dépendent. Si la sandbox est un jour activée, ces deux points seront à revoir.
 - Sans Timi lancé, les hooks n'ont aucun effet visible : Claude n'est pas bloqué, mais rien ne s'affiche.

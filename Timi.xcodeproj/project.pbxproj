@@ -41,6 +41,7 @@
 		C10000000000000000000203 /* ClaudeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000203 /* ClaudeSession.swift */; };
 		C10000000000000000000204 /* ClaudeSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000204 /* ClaudeSessionStore.swift */; };
 		C10000000000000000000205 /* SessionFocuser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000205 /* SessionFocuser.swift */; };
+		C10000000000000000000210 /* ClaudeSessionDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000210 /* ClaudeSessionDiscovery.swift */; };
 		C10000000000000000000206 /* SessionMascotLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000206 /* SessionMascotLayout.swift */; };
 		C10000000000000000000207 /* SessionMascotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000207 /* SessionMascotView.swift */; };
 		C10000000000000000000208 /* SessionMascotsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000208 /* SessionMascotsWindowController.swift */; };
@@ -96,6 +97,7 @@
 		C20000000000000000000203 /* ClaudeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeSession.swift; sourceTree = "<group>"; };
 		C20000000000000000000204 /* ClaudeSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeSessionStore.swift; sourceTree = "<group>"; };
 		C20000000000000000000205 /* SessionFocuser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFocuser.swift; sourceTree = "<group>"; };
+		C20000000000000000000210 /* ClaudeSessionDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeSessionDiscovery.swift; sourceTree = "<group>"; };
 		C20000000000000000000206 /* SessionMascotLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionMascotLayout.swift; sourceTree = "<group>"; };
 		C20000000000000000000207 /* SessionMascotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionMascotView.swift; sourceTree = "<group>"; };
 		C20000000000000000000208 /* SessionMascotsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionMascotsWindowController.swift; sourceTree = "<group>"; };
@@ -236,6 +238,7 @@
 				C20000000000000000000201 /* ClaudeHookRequest.swift */,
 				C20000000000000000000202 /* ClaudeHookServer.swift */,
 				C20000000000000000000203 /* ClaudeSession.swift */,
+				C20000000000000000000210 /* ClaudeSessionDiscovery.swift */,
 				C20000000000000000000204 /* ClaudeSessionStore.swift */,
 				C20000000000000000000205 /* SessionFocuser.swift */,
 			);
@@ -372,6 +375,7 @@
 				C10000000000000000000201 /* ClaudeHookRequest.swift in Sources */,
 				C10000000000000000000202 /* ClaudeHookServer.swift in Sources */,
 				C10000000000000000000203 /* ClaudeSession.swift in Sources */,
+				C10000000000000000000210 /* ClaudeSessionDiscovery.swift in Sources */,
 				C10000000000000000000204 /* ClaudeSessionStore.swift in Sources */,
 				C10000000000000000000205 /* SessionFocuser.swift in Sources */,
 				C10000000000000000000206 /* SessionMascotLayout.swift in Sources */,

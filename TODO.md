@@ -129,6 +129,7 @@ Dernière mise à jour : 2026-10-29
 - [ ] Session Claude Code : fin de tour → « A fini, à toi » (doux).
 - [ ] Session Claude Code : clic sur un petit Timi → le bon workspace cmux prend le focus.
 - [ ] Session Claude Code dans herdr (lui-même dans cmux) : relancer le script jq de la doc pour ajouter les en-têtes `X-Timi-Herdr-*`, puis clic sur un petit Timi → le bon pane herdr prend le focus et cmux passe au premier plan.
+- [ ] Session Claude Code : lancer Timi pendant qu’une session travaille et une autre attend un prompt → les deux petits Timi apparaissent tout de suite, en « Travaille » et « En attente ».
 - [ ] Session Claude Code : `/exit` → le petit Timi disparaît.
 - [ ] Session Claude Code : `kill -9` du process `claude` → le petit Timi disparaît en 10 s au plus.
 - [ ] Session Claude Code : la rangée suit le grand Timi et change de côté selon sa moitié d’écran ; collé à gauche ou à droite, elle devient une colonne verticale.

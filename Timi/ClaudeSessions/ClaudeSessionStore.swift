@@ -53,6 +53,25 @@ final class ClaudeSessionStore: ObservableObject {
     }
   }
 
+  /// Adds sessions found on disk at launch, skipping known sessions and dead processes.
+  func seed(_ entries: [ClaudeSessionDiscovery.Entry]) {
+    var added: [ClaudeSession] = []
+    for entry in entries where isProcessAlive(entry.pid) {
+      guard !(sessions + added).contains(where: { $0.id == entry.sessionId }) else { continue }
+      lastActivity[entry.sessionId] = now()
+      added.append(
+        ClaudeSession(
+          id: entry.sessionId,
+          projectName: ClaudeSession.projectName(forWorkingDirectory: entry.cwd),
+          status: ClaudeSessionDiscovery.status(of: entry),
+          context: ClaudeHookContext(pid: entry.pid)
+        ))
+    }
+    if !added.isEmpty {
+      sessions += added
+    }
+  }
+
   /// Starts the periodic removal of sessions whose process died or went silent.
   func startLivenessChecks() {
     guard livenessTimer == nil else { return }

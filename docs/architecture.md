@@ -113,7 +113,9 @@ The generated bundle declares `AppIcon` and contains the compiled `.icns`; `AppD
 | Your turn (gentle) | `Stop`, idle notification |
 | Idle | `SessionStart` |
 
-A sub-agent event never clears "needs you": only the main thread does. Sessions are keyed by `session_id`, created on the first event seen (sessions started before Timi), kept in memory, and removed on `SessionEnd`, when the `claude` process dies (checked every 10 seconds) or after two silent hours when no PID is known.
+A sub-agent event never clears "needs you": only the main thread does. Sessions are keyed by `session_id`, created on the first event seen, kept in memory, and removed on `SessionEnd`, when the `claude` process dies (checked every 10 seconds) or after two silent hours when no PID is known.
+
+**Sessions running at launch.** Hooks only reveal a session at its next event. At launch `ClaudeSessionDiscovery` reads the `~/.claude/sessions/<pid>.json` files Claude Code keeps per open session (`sessionId`, `pid`, `cwd`, `status`) and seeds the store with those whose process is alive: `busy` becomes working, anything else idle. The format is undocumented, so any unreadable file is skipped and hooks stay the source of truth; seeded sessions have no terminal context until their first hook.
 
 **One panel per session.** Each session mascot is an `NSPanel` configured like the main one: borderless, non-activating, screen-saver level, on all Spaces and above full-screen apps. AppKit is required for the same reason as for the main mascot. The hosting view accepts the first click, has no drag, and calls `SessionFocuser`.
 

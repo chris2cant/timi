@@ -195,6 +195,24 @@ final class ClaudeSessionStoreTests: XCTestCase {
     XCTAssertEqual(store.sessions.map(\.id), ["alive"])
   }
 
+  func testSeedAddsLiveUnknownSessions() {
+    let store = makeStore()
+    store.handle(request("PermissionRequest", session: "known"))
+    deadPIDs = [3]
+    store.seed([
+      ClaudeSessionDiscovery.Entry(sessionId: "known", pid: 1, status: "busy"),
+      ClaudeSessionDiscovery.Entry(sessionId: "busy", pid: 2, cwd: "/tmp/proj", status: "busy"),
+      ClaudeSessionDiscovery.Entry(sessionId: "dead", pid: 3, status: "busy"),
+      ClaudeSessionDiscovery.Entry(sessionId: "idle", pid: 4, status: "idle"),
+      ClaudeSessionDiscovery.Entry(sessionId: "idle", pid: 5, status: "busy"),
+    ])
+
+    XCTAssertEqual(store.sessions.map(\.id), ["known", "busy", "idle"])
+    XCTAssertEqual(store.sessions.map(\.status), [.needsYou, .working, .idle])
+    XCTAssertEqual(store.sessions[1].projectName, "proj")
+    XCTAssertEqual(store.sessions[2].context.pid, 4)
+  }
+
   func testHeartbeatKeepsSilentSessionAlive() {
     let store = makeStore()
     store.handle(request("Stop"))
@@ -203,6 +221,38 @@ final class ClaudeSessionStoreTests: XCTestCase {
     clock.addTimeInterval(3600 + 60)
     store.pruneSessions()
     XCTAssertEqual(store.sessions.count, 1)
+  }
+}
+
+final class ClaudeSessionDiscoveryTests: XCTestCase {
+  func testEntriesAreReadFromJSONFilesOldestFirst() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let files = [
+      "20.json": #"{"pid":20,"sessionId":"new","cwd":"/a","status":"busy","startedAt":2000,"kind":"interactive"}"#,
+      "10.json": #"{"pid":10,"sessionId":"old","status":"idle","startedAt":1000}"#,
+      "30.json": #"{"pid":30,"cwd":"/no-session-id"}"#,
+      "40.json": "not json",
+      "10.abc.key": "secret",
+    ]
+    for (name, content) in files {
+      try Data(content.utf8).write(to: directory.appending(path: name))
+    }
+
+    let entries = ClaudeSessionDiscovery.entries(in: directory)
+    XCTAssertEqual(entries.map(\.sessionId), ["old", "new"])
+    XCTAssertEqual(entries[1].cwd, "/a")
+    XCTAssertEqual(entries.map(ClaudeSessionDiscovery.status(of:)), [.idle, .working])
+  }
+
+  func testMissingDirectoryHasNoEntries() {
+    XCTAssertEqual(ClaudeSessionDiscovery.entries(in: URL(filePath: "/nonexistent-timi")), [])
+  }
+
+  func testInvalidPIDIsRejected() {
+    XCTAssertNil(ClaudeSessionDiscovery.entry(from: Data(#"{"pid":0,"sessionId":"s"}"#.utf8)))
   }
 }
 

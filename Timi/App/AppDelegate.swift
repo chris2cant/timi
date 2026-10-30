@@ -122,6 +122,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         logger.error("Claude hook server failed to start: \(error.localizedDescription, privacy: .public)")
       }
       hookServer = server
+      // Hooks only reveal a session at its next event; show those already running now.
+      sessionStore.seed(ClaudeSessionDiscovery.entries())
     }
     sessionStore.startLivenessChecks()
 
