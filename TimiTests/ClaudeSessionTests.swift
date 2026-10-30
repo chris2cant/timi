@@ -18,10 +18,12 @@ final class ClaudeSessionStateTests: XCTestCase {
 
   func testTransitionTable() {
     for name in [
-      "UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "SubagentStart", "SubagentStop",
+      "UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "SubagentStart",
     ] {
       XCTAssertEqual(next(.idle, event(name)), .working, name)
     }
+    XCTAssertEqual(next(.working, event("SubagentStop", agent: "a1")), .working)
+    XCTAssertEqual(next(.yourTurn, event("SubagentStop", agent: "a1")), .yourTurn)
     XCTAssertEqual(next(.idle, event("SessionStart")), .idle)
     XCTAssertEqual(next(.working, event("SessionStart")), .idle)
     XCTAssertEqual(next(.idle, event("PreToolUse", tool: "Bash")), .working)

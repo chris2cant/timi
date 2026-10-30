@@ -125,7 +125,7 @@ Dernière mise à jour : 2026-10-29
 - [ ] Confirmer que les yeux, le libellé et l’onde de dictée restent entièrement visibles pendant la respiration et le survol.
 - [ ] Session Claude Code : demande de permission Bash → urgent, puis retour à « Travaille » après approbation.
 - [ ] Session Claude Code : `AskUserQuestion` → urgent.
-- [ ] Session Claude Code : halo bleu lisible pendant « Travaille » en mode clair et sombre, sans déborder contre le bord d’écran.
+- [ ] Session Claude Code : liseré et halo bleus lisibles pendant « Travaille », y compris sur un fond d’écran bleu, sans liseré contre le bord d’écran ; à la fin d’un tour, le petit Timi reste en « A fini, à toi ».
 - [ ] Session Claude Code : fin de tour → « A fini, à toi » (doux).
 - [ ] Session Claude Code : clic sur un petit Timi → le bon workspace cmux prend le focus.
 - [ ] Session Claude Code dans herdr (lui-même dans cmux) : relancer le script jq de la doc pour ajouter les en-têtes `X-Timi-Herdr-*`, puis clic sur un petit Timi → le bon pane herdr prend le focus et cmux passe au premier plan.

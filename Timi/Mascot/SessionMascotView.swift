@@ -105,9 +105,10 @@ struct SessionMascotView: View {
       eyes
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
-      if session.status == .needsYou {
+      if haloColor != .clear {
+        // The outline keeps the state readable on a wallpaper of the same hue as the halo.
         shape
-          .stroke(.orange, lineWidth: 2)
+          .stroke(session.status == .needsYou ? .orange : .blue, lineWidth: session.status == .needsYou ? 2 : 1.5)
           // No outline along the screen edge itself.
           .mask { Rectangle().padding(dock.wallEdge, Self.joinMargin + 1) }
       }

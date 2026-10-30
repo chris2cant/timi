@@ -29,8 +29,11 @@ struct ClaudeSession: Identifiable, Equatable, Sendable {
       return nil
     case "SessionStart":
       next = event.source == "compact" ? (current ?? .idle) : .idle
-    case "UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "SubagentStart", "SubagentStop":
+    case "UserPromptSubmit", "PostToolUse", "PostToolUseFailure", "SubagentStart":
       next = .working
+    case "SubagentStop":
+      // Claude Code ends internal background agents after `Stop`: the turn stays over.
+      next = current ?? .idle
     case "PreToolUse":
       next = event.toolName.map { ["AskUserQuestion", "ExitPlanMode"].contains($0) } == true ? .needsYou : .working
     case "PermissionRequest":

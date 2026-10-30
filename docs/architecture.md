@@ -104,7 +104,7 @@ The generated bundle declares `AppIcon` and contains the compiled `.icns`; `AppD
 
 **Unix socket transport.** Claude Code hooks send every event to Timi with `curl --unix-socket` to `~/Library/Application Support/Timi/claude-hooks.sock`. A Unix socket rather than a TCP port avoids port conflicts and firewall prompts and opens no network surface; `~/Library` is 0700, so only the user can connect. `ClaudeHookServer` listens with `NWListener` (`requiredLocalEndpoint = .unix(path:)`), removes a stale socket before binding, answers `204` and hands each request to the main queue in arrival order. When Timi is not running the connection is refused immediately; the hook ends with `|| true` and a one-second limit, so it never blocks Claude. The hook also forwards `$PPID` (the `claude` process) and the herdr pane and cmux workspace variables as `X-Timi-*` headers.
 
-**State machine.** `ClaudeSession.nextStatus(from:on:)` is a pure reducer covered by unit tests. It follows the-office's hook mapping and fixes its known gaps: `PostToolUse` returns to working after an approval, `UserPromptSubmit` and `Notification` are used, and `AskUserQuestion` / `ExitPlanMode` count as requests for the user.
+**State machine.** `ClaudeSession.nextStatus(from:on:)` is a pure reducer covered by unit tests. It follows the-office's hook mapping and fixes its known gaps: `PostToolUse` returns to working after an approval, `UserPromptSubmit` and `Notification` are used, and `AskUserQuestion` / `ExitPlanMode` count as requests for the user. `SubagentStop` keeps the status: Claude Code ends internal background agents right after `Stop`, which must not reopen the turn.
 
 | Status | Triggers |
 |---|---|

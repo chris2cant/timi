@@ -82,7 +82,7 @@ cp ~/.claude/settings.json ~/.claude/settings.json.bak-timi; and jq '
 
 | Statut | Rendu | Événements déclencheurs |
 |---|---|---|
-| Travaille | Regard qui balaie, respiration rapide, halo bleu | `UserPromptSubmit`, `PreToolUse` (hors questions), `PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop` |
+| Travaille | Regard qui balaie, respiration rapide, liseré et halo bleus | `UserPromptSubmit`, `PreToolUse` (hors questions), `PostToolUse`, `PostToolUseFailure`, `SubagentStart` |
 | A besoin de toi (urgent) | Saut toutes les 1,5 s, liseré et halo orange, bulle « ! » | `PermissionRequest` ; `PreToolUse` pour `AskUserQuestion` et `ExitPlanMode` ; `Notification` de type `permission_prompt` ou `elicitation_dialog` |
 | A fini, à toi (doux) | Frétillement à l'entrée, puis pulsation d'un point vert | `Stop` ; `Notification` de type `idle_prompt` |
 | En attente | Yeux mi-clos, immobile | `SessionStart` (un `SessionStart` après compactage ne change pas le statut) |
@@ -92,6 +92,7 @@ Règles complémentaires :
 - Une session est supprimée à l'événement `SessionEnd`.
 - Une session inconnue est créée au premier événement reçu.
 - Au lancement, Timi lit les fichiers `~/.claude/sessions/<pid>.json` que Claude Code tient pour chaque session ouverte. Les sessions dont le process est vivant apparaissent tout de suite : « Travaille » si le fichier indique `busy`, « En attente » sinon. Ce format n’est pas documenté par Claude Code : un fichier illisible est ignoré, et la session apparaît alors à son prochain événement. Une session bloquée sur une demande n’est reconnue comme urgente qu’à son prochain événement, et le clic ne peut focus son terminal qu’après ce premier événement.
+- `SubagentStop` ne change pas le statut : Claude Code termine des agents internes juste après `Stop`, et le tour doit rester fini.
 - Un événement d'un sous-agent ne fait jamais repasser une session « A besoin de toi » à « Travaille ». Seul le fil principal lève l'alerte.
 - Les autres types de `Notification` sont ignorés.
 
