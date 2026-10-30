@@ -325,15 +325,14 @@ struct MascotView: View {
   }
 }
 
-private struct MascotSilhouette: Shape {
+struct MascotSilhouette: Shape {
   let attachmentEdges: MascotAttachmentEdges
   let cornerRadius: CGFloat
+  /// Room around the body for the joins drawn toward attached edges.
+  var margin: CGFloat = MascotWindowController.drawingMargin
 
   func path(in rect: CGRect) -> Path {
-    let bodyRect = rect.insetBy(
-      dx: MascotWindowController.drawingMargin,
-      dy: MascotWindowController.drawingMargin
-    )
+    let bodyRect = rect.insetBy(dx: margin, dy: margin)
     let radius = min(cornerRadius, min(bodyRect.width, bodyRect.height) / 2)
     let top = attachmentEdges.contains(.top)
     let right = attachmentEdges.contains(.right)

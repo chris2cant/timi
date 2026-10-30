@@ -19,7 +19,7 @@ You can also drag Timi directly, including onto the menu bar or Dock area. Relea
 
 Timi's eyes follow the pointer anywhere on screen (read with `NSEvent.mouseLocation`, so no extra permission) and rest when Reduce Motion is on.
 
-Click Timi to open the conversation bubble. Responses come from Apple's on-device Foundation Model and are streamed into the bubble; no account, API key, or network service is added by Timi. Press Escape or click elsewhere to close the bubble. On unsupported systems, the bubble explains why conversation is unavailable while the rest of Timi continues to work.
+Click Timi to open the conversation bubble. Responses come from Apple's on-device Foundation Model and are streamed into the bubble; no account, API key, or network service is added by Timi (the Claude Code integration below only uses a local Unix socket). Press Escape or click elsewhere to close the bubble. On unsupported systems, the bubble explains why conversation is unavailable while the rest of Timi continues to work.
 
 The microphone button uses Apple's on-device `SpeechTranscriber` for live dictation and falls back to the system dictation model when the newer model does not support the current locale. Click once to start, speak, then click the stop button to finalize the text before sending it. Timi requests microphone access only when dictation is first used and stops recording when the conversation bubble closes.
 
@@ -31,6 +31,10 @@ When a response finishes, Timi reads it aloud with `AVSpeechSynthesizer`. It det
 
 The app intentionally keeps a normal Dock icon in V0 so Settings and Quit remain easy to find.
 
+## Claude Code sessions
+
+Timi can show one small Timi per running Claude Code session, lined up next to the main mascot. Each one shows whether its session is working, needs you (urgent) or has finished its turn (gentle), and a click focuses its terminal (herdr pane and/or cmux workspace). Events come from Claude Code hooks through a local Unix socket: no network port. Hook installation, states and limits: [docs/claude-code-sessions.md](docs/claude-code-sessions.md).
+
 ## Tests
 
 Run the `TimiTests` test target in Xcode (`⌘U`).
@@ -40,6 +44,8 @@ Run the `TimiTests` test target in Xcode (`⌘U`).
 - Mascot appearance: `Timi/Mascot/MascotView.swift`
 - Pure anchor geometry: `Timi/Mascot/PositionCalculator.swift`
 - Floating AppKit panel: `Timi/Mascot/MascotWindowController.swift`
+- Claude Code sessions (hook socket, state machine, store, herdr/cmux focus): `Timi/ClaudeSessions/`
+- Session mascots (pure layout, view, `NSPanel`s): `Timi/Mascot/SessionMascotLayout.swift`, `Timi/Mascot/SessionMascotView.swift`, `Timi/Mascot/SessionMascotsWindowController.swift`
 - Conversation state and Apple Intelligence integration: `Timi/Chat/ChatState.swift`
 - On-device speech transcription and microphone capture: `Timi/Chat/SpeechInputController.swift`
 - Global dictation coordination, shortcut, insertion, and local catalog: `Timi/Dictation/`

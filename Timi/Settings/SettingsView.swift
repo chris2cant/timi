@@ -50,6 +50,14 @@ struct SettingsView: View {
         Button("Réinitialiser le décalage") { appState.resetOffset() }
           .disabled(appState.offset == .zero)
       }
+      Section("Sessions Claude Code") {
+        Toggle("Afficher un petit Timi par session", isOn: $appState.showsClaudeSessions)
+        Text("Les hooks Claude Code sont à installer à la main (voir docs/claude-code-sessions.md). Ils écrivent sur ce socket :")
+          .font(.caption).foregroundStyle(.secondary)
+        Text(ClaudeHookServer.defaultSocketURL.path)
+          .font(.caption.monospaced()).foregroundStyle(.secondary)
+          .textSelection(.enabled)
+      }
       Section("Masquage automatique") {
         Picker("Mode", selection: $appState.autoHideMode) {
           ForEach(AutoHideMode.allCases) { mode in Text(mode.title).tag(mode) }

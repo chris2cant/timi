@@ -1,9 +1,10 @@
 # Timi — suivi du projet
 
-Dernière mise à jour : 2026-10-05
+Dernière mise à jour : 2026-10-29
 
 ## Terminé
 
+- [x] Un petit Timi par session Claude Code (hooks → socket Unix), états travaille / a besoin de toi / à toi / en attente, clic → pane herdr et/ou workspace cmux.
 - [x] Mises à jour automatiques via Sparkle 2 (menu, Réglages, scripts de release, documentation) ; en attente de validation manuelle.
 - [x] Ajouter l’auto-hide (Désactivé / Masquer complètement / 4 pt visibles) avec délai réglable en secondes : Timi glisse contre le bord le plus proche sans écran voisin et réapparaît au survol du bord.
 - [x] Ajouter l’icône de barre des menus (`NSStatusItem`, icône template) avec Afficher/Masquer, Réglages et Quitter.
@@ -122,18 +123,32 @@ Dernière mise à jour : 2026-10-05
 - [ ] Confirmer à taille réelle que la silhouette noire fixe reste nette et affleure correctement chaque bord.
 - [ ] Valider visuellement les raccords façon notch sur les quatre bords et dans les quatre coins.
 - [ ] Confirmer que les yeux, le libellé et l’onde de dictée restent entièrement visibles pendant la respiration et le survol.
+- [ ] Session Claude Code : demande de permission Bash → urgent, puis retour à « Travaille » après approbation.
+- [ ] Session Claude Code : `AskUserQuestion` → urgent.
+- [ ] Session Claude Code : halo bleu lisible pendant « Travaille » en mode clair et sombre, sans déborder contre le bord d’écran.
+- [ ] Session Claude Code : fin de tour → « A fini, à toi » (doux).
+- [ ] Session Claude Code : clic sur un petit Timi → le bon workspace cmux prend le focus.
+- [ ] Session Claude Code dans herdr (lui-même dans cmux) : relancer le script jq de la doc pour ajouter les en-têtes `X-Timi-Herdr-*`, puis clic sur un petit Timi → le bon pane herdr prend le focus et cmux passe au premier plan.
+- [ ] Session Claude Code : `/exit` → le petit Timi disparaît.
+- [ ] Session Claude Code : `kill -9` du process `claude` → le petit Timi disparaît en 10 s au plus.
+- [ ] Session Claude Code : la rangée suit le grand Timi et change de côté selon sa moitié d’écran ; collé à gauche ou à droite, elle devient une colonne verticale.
+- [ ] Session Claude Code : les petits Timi de la première ligne se collent au bord avec les raccords façon notch, sans liseré orange contre le bord.
+- [ ] Session Claude Code : sur deux écrans, la rangée reste sur l’écran du grand Timi.
+- [x] Session Claude Code : `$PPID` du hook est bien le PID du process `claude` (vérifié via les logs `ClaudeHooks`).
 
 ## Prochaines étapes proposées
 
+- [ ] Valider manuellement : mettre le Mac en veille avec 2 écrans, le réveiller, vérifier que Timi reste sur son écran et sa position (correctif de l'écrasement de l'écran préféré).
 - [ ] Sparkle : lancer `scripts/generate-keys.sh`, renseigner `SUPublicEDKey`, créer le certificat auto-signé, puis valider manuellement le scénario 1.0.0 → 1.0.1 (voir `RELEASING.md`).
 - [ ] Ajuster la respiration selon le retour de validation manuelle.
 - [ ] Finaliser l'icône d'application après validation visuelle aux petites tailles.
 - [ ] Ajuster la taille et le style de la bulle après validation en usage réel.
+- [ ] Persister les sessions Claude Code entre deux lancements de Timi.
 
 ## Hors périmètre actuel
 
-- Capture d'écran ou intégrations agent.
-- Réseau, comptes, analytics ou infrastructure cloud.
+- Capture d'écran.
+- Réseau, comptes, analytics ou infrastructure cloud (l'IPC locale par socket Unix pour Claude Code reste autorisée).
 - Gestion avancée de plusieurs écrans.
 - Launch at login.
 - Signature de distribution, notarisation et publication sur le Mac App Store tant que le projet reste privé.

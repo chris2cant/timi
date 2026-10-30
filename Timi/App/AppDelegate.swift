@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -10,6 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   let shortcutMonitor = GlobalShortcutMonitor()
   let updateManager = UpdateManager()
   private var wasHiddenBeforeDictation = false
+  private let sessionStore = ClaudeSessionStore()
+  private var hookServer: ClaudeHookServer?
+  private var sessionMascotsController: SessionMascotsWindowController?
+  private let logger = Logger(subsystem: "io.github.chris2cant.Timi", category: "ClaudeHooks")
 
   override init() {
     let store = DictationStore()
@@ -42,8 +47,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     controller.offsetDidChange = { [weak appState] offset, displayUUID in
       appState?.updatePlacement(offset: offset, displayUUID: displayUUID)
     }
-    appState.visibilityDidChange = { [weak controller] isVisible in
+    appState.visibilityDidChange = { [weak self, weak controller] isVisible in
       controller?.setVisible(isVisible)
+      self?.updateSessionMascotsVisibility()
     }
     dictationCoordinator.temporaryVisibilityChange = { [weak self, weak controller] active in
       guard let self, let controller else { return }
@@ -71,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       shortcutMonitor?.shortcut = shortcut
     }
     shortcutMonitor.start()
+    startClaudeSessions(mascotController: controller)
 
     if appState.isVisible {
       controller.show(
@@ -85,6 +92,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         displayUUID: appState.displayUUID
       )
     }
+    if let placement = controller.displayedMascotPlacement {
+      sessionMascotsController?.updateAnchor(mascotFrame: placement.frame, screen: placement.screen)
+    }
+  }
+
+  func applicationWillTerminate(_ notification: Notification) {
+    sessionStore.stopLivenessChecks()
+    hookServer?.stop()
   }
 
   func requestGlobalShortcutPermission() {
@@ -93,6 +108,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func testGlobalDictation() {
     dictationCoordinator.toggleGlobal()
+  }
+
+  private func startClaudeSessions(mascotController: MascotWindowController) {
+    // The test host must not take the socket of an installed Timi running alongside.
+    if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+      let server = ClaudeHookServer(onRequest: { [weak sessionStore] request in
+        sessionStore?.handle(request)
+      })
+      do {
+        try server.start()
+      } catch {
+        logger.error("Claude hook server failed to start: \(error.localizedDescription, privacy: .public)")
+      }
+      hookServer = server
+    }
+    sessionStore.startLivenessChecks()
+
+    let sessionsController = SessionMascotsWindowController(store: sessionStore)
+    sessionMascotsController = sessionsController
+    updateSessionMascotsVisibility()
+    mascotController.mascotFrameDidChange = { [weak sessionsController] frame, screen in
+      sessionsController?.updateAnchor(mascotFrame: frame, screen: screen)
+    }
+    appState.showsClaudeSessionsDidChange = { [weak self] _ in
+      self?.updateSessionMascotsVisibility()
+    }
+  }
+
+  private func updateSessionMascotsVisibility() {
+    sessionMascotsController?.setVisible(appState.isVisible && appState.showsClaudeSessions)
   }
 
   private func configureApplicationIcon() {

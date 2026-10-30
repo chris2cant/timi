@@ -104,6 +104,8 @@ final class MascotWindowController: NSObject {
   private var shownMascotOrigin = CGPoint.zero
 
   var offsetDidChange: ((CGSize, String?) -> Void)?
+  /// Displayed mascot frame (no transparent margin, ignoring auto-hide) and its screen.
+  var mascotFrameDidChange: ((CGRect, NSScreen) -> Void)?
 
   init(appState: AppState, dictationCoordinator: DictationCoordinator) {
     let interactionState = MascotInteractionState()
@@ -320,7 +322,13 @@ final class MascotWindowController: NSObject {
     currentOffset = offset
     let preferredUUID = displayUUID ?? currentDisplayUUID
     guard let screen = resolvedScreen(preferredUUID: preferredUUID) else { return }
-    currentDisplayUUID = Self.displayUUID(for: screen) ?? preferredUUID
+    // Keep the preferred display when it is momentarily missing (e.g. while
+    // displays reconnect after sleep): the fallback screen is only a temporary
+    // placement, and the next screen-change notification restores the real one.
+    let screenUUID = Self.displayUUID(for: screen)
+    if preferredUUID == nil || screenUUID == preferredUUID {
+      currentDisplayUUID = screenUUID ?? preferredUUID
+    }
     let visibleFrame = screen.visibleFrame
 
     let requestedOrigin = PositionCalculator.origin(
@@ -337,6 +345,7 @@ final class MascotWindowController: NSObject {
     )
     panel.setFrameOrigin(panelOrigin(forMascotOrigin: mascotOrigin))
     updateAttachmentEdges(at: mascotOrigin, on: screen)
+    mascotFrameDidChange?(mascotFrame, screen)
     if chatWindowController.isVisible {
       chatWindowController.move(attachedTo: mascotFrame, on: screen)
     }
@@ -359,6 +368,7 @@ final class MascotWindowController: NSObject {
     )
     panel.setFrameOrigin(panelOrigin(forMascotOrigin: snappedOrigin))
     updateAttachmentEdges(at: snappedOrigin, on: screen)
+    mascotFrameDidChange?(mascotFrame, screen)
     if chatWindowController.isVisible {
       chatWindowController.move(attachedTo: mascotFrame, on: screen)
     }
@@ -406,6 +416,16 @@ final class MascotWindowController: NSObject {
       return nil
     }
     return screens[index]
+  }
+
+  /// Where the mascot is shown, even while it is slid away by auto-hide.
+  var displayedMascotPlacement: (frame: CGRect, screen: NSScreen)? {
+    let frame = isAutoHidden ? CGRect(origin: shownMascotOrigin, size: Self.mascotSize) : mascotFrame
+    guard let screen = screenContainingMost(of: frame)
+      ?? resolvedScreen(preferredUUID: currentDisplayUUID) else {
+      return nil
+    }
+    return (frame, screen)
   }
 
   private var mascotFrame: CGRect {
@@ -457,6 +477,7 @@ final class MascotWindowController: NSObject {
       threshold: Self.edgeSnapThreshold
     )
     updateAttachmentEdges(at: previewMascotOrigin, on: screen)
+    mascotFrameDidChange?(CGRect(origin: previewMascotOrigin, size: Self.mascotSize), screen)
     return panelOrigin(forMascotOrigin: previewMascotOrigin)
   }
 

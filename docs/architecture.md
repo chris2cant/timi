@@ -100,6 +100,29 @@ The generated bundle declares `AppIcon` and contains the compiled `.icns`; `AppD
 
 `UpdateManager` owns one `SPUStandardUpdaterController` for the app lifetime and exposes `checkForUpdates()` and `canCheckForUpdates` to the status-item menu, the app menu and Settings. Sparkle is the only third-party dependency; the documented reason is secure, signed, user-confirmed updates without writing our own installer. Trust rests on the Sparkle EdDSA key (feed and archives signed, verified before extraction), not on Apple signing. `com.apple.security.cs.disable-library-validation` is required because a self-signed or ad-hoc app has no Team ID; remove it when moving to Developer ID and notarization. See `RELEASING.md`.
 
+## Claude Code sessions
+
+**Unix socket transport.** Claude Code hooks send every event to Timi with `curl --unix-socket` to `~/Library/Application Support/Timi/claude-hooks.sock`. A Unix socket rather than a TCP port avoids port conflicts and firewall prompts and opens no network surface; `~/Library` is 0700, so only the user can connect. `ClaudeHookServer` listens with `NWListener` (`requiredLocalEndpoint = .unix(path:)`), removes a stale socket before binding, answers `204` and hands each request to the main queue in arrival order. When Timi is not running the connection is refused immediately; the hook ends with `|| true` and a one-second limit, so it never blocks Claude. The hook also forwards `$PPID` (the `claude` process) and the herdr pane and cmux workspace variables as `X-Timi-*` headers.
+
+**State machine.** `ClaudeSession.nextStatus(from:on:)` is a pure reducer covered by unit tests. It follows the-office's hook mapping and fixes its known gaps: `PostToolUse` returns to working after an approval, `UserPromptSubmit` and `Notification` are used, and `AskUserQuestion` / `ExitPlanMode` count as requests for the user.
+
+| Status | Triggers |
+|---|---|
+| Working | prompt, tool use, sub-agents |
+| Needs you (urgent) | `PermissionRequest`, `AskUserQuestion`, `ExitPlanMode`, permission or elicitation notifications |
+| Your turn (gentle) | `Stop`, idle notification |
+| Idle | `SessionStart` |
+
+A sub-agent event never clears "needs you": only the main thread does. Sessions are keyed by `session_id`, created on the first event seen (sessions started before Timi), kept in memory, and removed on `SessionEnd`, when the `claude` process dies (checked every 10 seconds) or after two silent hours when no PID is known.
+
+**One panel per session.** Each session mascot is an `NSPanel` configured like the main one: borderless, non-activating, screen-saver level, on all Spaces and above full-screen apps. AppKit is required for the same reason as for the main mascot. The hosting view accepts the first click, has no drag, and calls `SessionFocuser`.
+
+**Pure, tested layout.** `SessionMascotLayout.origins(...)` computes the positions without AppKit. When the main mascot sticks to the left or right screen edge only, session mascots stack in a column along that edge, growing toward the vertical middle of the screen; otherwise (bottom or top edge, corners, free placement) they form a row that grows toward the inside and aligns with the bottom of the main mascot (its top in the upper half). Both wrap inward when they overflow, and each origin is clamped with `PositionCalculator.clamped`. The first line shares the main mascot's edge, so its session mascots stick to that edge too and draw the same notch-style joins (`MascotSilhouette` takes a margin); their label, badge and hop move to the inner side, and a larger leading gap keeps their joins apart from the main mascot's.
+
+**Following the main mascot.** `MascotWindowController.mascotFrameDidChange` reports the displayed mascot frame while dragging, on release and on repositioning. Auto-hide only hides the main mascot: session mascots stay visible so they can still call for attention. They hide with the main visibility toggle or the "Claude Code sessions" setting.
+
+**Terminal focus without Apple Events.** `SessionFocuser` runs the herdr CLI (`agent focus <pane>`) when the session lives in a herdr pane, then the cmux CLI (`select-workspace`) with `Process`, and activates cmux with `NSRunningApplication`. An Apple Event would require an Automation permission per target app; a launched process needs none. This relies on the app not being sandboxed, like global dictation.
+
 ## Revisit before public release
 
 - Install the release Xcode, build/archive with warnings treated seriously, and reconfirm the deployment target.
@@ -109,3 +132,4 @@ The generated bundle declares `AppIcon` and contains the compiled `.icns`; `AppD
 - Revalidate Foundation Models prompts and availability handling when adopting a new macOS SDK because Apple can update the system model with OS releases.
 - Review the app icon at every macOS display size, then prepare versioning, a privacy statement, and release metadata.
 - Decide whether a Dock app, menu bar extra, or agent-style app is appropriate only after V0 behavior is proven.
+- If App Sandbox is ever enabled, the hook socket path (app container) and launching `herdr` and `cmux` change or break: revisit before signing and notarization.

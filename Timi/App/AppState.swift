@@ -89,6 +89,7 @@ final class AppState: ObservableObject {
     static let dictationShortcut = "dictationShortcut"
     static let autoHideMode = "autoHideMode"
     static let autoHideDelay = "autoHideDelay"
+    static let showsClaudeSessions = "showsClaudeSessions"
   }
 
   @Published private(set) var position: MascotPosition
@@ -137,6 +138,12 @@ final class AppState: ObservableObject {
       autoHideModeDidChange?(autoHideMode)
     }
   }
+  @Published var showsClaudeSessions: Bool {
+    didSet {
+      defaults.set(showsClaudeSessions, forKey: Keys.showsClaudeSessions)
+      showsClaudeSessionsDidChange?(showsClaudeSessions)
+    }
+  }
 
   private let defaults: UserDefaults
   var placementDidChange: ((MascotPosition, CGSize, String?) -> Void)?
@@ -144,6 +151,7 @@ final class AppState: ObservableObject {
   var autoHideModeDidChange: ((AutoHideMode) -> Void)?
   var autoHideDelayDidChange: ((TimeInterval) -> Void)?
   var dictationShortcutDidChange: ((DictationShortcut) -> Void)?
+  var showsClaudeSessionsDidChange: ((Bool) -> Void)?
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
@@ -164,6 +172,7 @@ final class AppState: ObservableObject {
     autoHideMode = defaults.string(forKey: Keys.autoHideMode)
       .flatMap(AutoHideMode.init(rawValue:)) ?? .off
     autoHideDelay = defaults.object(forKey: Keys.autoHideDelay) as? Double ?? Self.defaultAutoHideDelay
+    showsClaudeSessions = defaults.object(forKey: Keys.showsClaudeSessions) as? Bool ?? true
   }
 
   func select(_ position: MascotPosition) {

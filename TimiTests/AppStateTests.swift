@@ -101,6 +101,20 @@ final class AppStateTests: XCTestCase {
     }
   }
 
+  func testShowsClaudeSessionsDefaultsToTruePersistsAndNotifies() {
+    withDefaults { defaults in
+      let state = AppState(defaults: defaults)
+      var observed: Bool?
+      state.showsClaudeSessionsDidChange = { observed = $0 }
+
+      XCTAssertTrue(state.showsClaudeSessions)
+      state.showsClaudeSessions = false
+      XCTAssertEqual(observed, false)
+      XCTAssertEqual(defaults.object(forKey: "showsClaudeSessions") as? Bool, false)
+      XCTAssertFalse(AppState(defaults: defaults).showsClaudeSessions)
+    }
+  }
+
   func testInvalidStoredPositionFallsBackToBottomRight() {
     withDefaults { defaults in
       defaults.set("not-a-position", forKey: "mascotPosition")

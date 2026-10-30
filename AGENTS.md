@@ -4,7 +4,8 @@
 
 - Timi is a small native macOS desktop mascot.
 - Support macOS only for now. Optimize for native behavior, simplicity, low resource usage, and maintainability.
-- Do not anticipate hypothetical requirements or expand V0 into AI, networking, accounts, analytics, or cloud features.
+- Do not anticipate hypothetical requirements or expand V0 into AI, accounts, analytics, or cloud features.
+- Claude Code session integration uses local IPC only (Unix domain socket); no network listeners.
 
 ## Technology
 
