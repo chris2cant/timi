@@ -1,10 +1,14 @@
 # Timi — suivi du projet
 
-Dernière mise à jour : 2026-10-29
+Dernière mise à jour : 2026-11-03
 
 ## Terminé
 
 - [x] Un petit Timi par session Claude Code (hooks → socket Unix), états travaille / a besoin de toi / à toi / en attente, clic → pane herdr et/ou workspace cmux.
+- [x] Clic sur un petit Timi de Claude Desktop → ouvre sa conversation dans Claude Desktop ; les sessions « En attente » ou « A fini » silencieuses depuis plus de 5 h sont masquées même si leur process vit encore.
+- [x] Les petits Timi « En attente » rétrécissent à 50 %, collés à leur bord, pour se lire endormis d’un coup d’œil.
+- [x] Installation clé en main : `scripts/install.sh` (build Release signé ad hoc ou avec l’identité stable, installation dans /Applications, lancement, hooks) et `scripts/claude-hooks.sh install|uninstall|status` ; README avec instructions pour qu’un agent fasse « Setup Timi ».
+- [x] Clic sur un petit Timi hors cmux/herdr : active l’app qui héberge `claude` dans l’arbre des processus (Terminal, iTerm2, Ghostty, VS Code…).
 - [x] Mises à jour automatiques via Sparkle 2 (menu, Réglages, scripts de release, documentation) ; en attente de validation manuelle.
 - [x] Ajouter l’auto-hide (Désactivé / Masquer complètement / 4 pt visibles) avec délai réglable en secondes : Timi glisse contre le bord le plus proche sans écran voisin et réapparaît au survol du bord.
 - [x] Ajouter l’icône de barre des menus (`NSStatusItem`, icône template) avec Afficher/Masquer, Réglages et Quitter.
@@ -130,12 +134,18 @@ Dernière mise à jour : 2026-10-29
 - [ ] Session Claude Code : clic sur un petit Timi → le bon workspace cmux prend le focus.
 - [ ] Session Claude Code dans herdr (lui-même dans cmux) : relancer le script jq de la doc pour ajouter les en-têtes `X-Timi-Herdr-*`, puis clic sur un petit Timi → le bon pane herdr prend le focus et cmux passe au premier plan.
 - [ ] Session Claude Code : lancer Timi pendant qu’une session travaille et une autre attend un prompt → les deux petits Timi apparaissent tout de suite, en « Travaille » et « En attente ».
+- [ ] Session Claude Code : passage « En attente » ↔ actif → la silhouette rétrécit/regrossit en douceur, reste collée à son bord (quatre bords et flottant), le libellé suit et le clic ne répond que sur la petite silhouette ou le libellé.
 - [ ] Session Claude Code : `/exit` → le petit Timi disparaît.
 - [ ] Session Claude Code : `kill -9` du process `claude` → le petit Timi disparaît en 10 s au plus.
 - [ ] Session Claude Code : la rangée suit le grand Timi et change de côté selon sa moitié d’écran ; collé à gauche ou à droite, elle devient une colonne verticale.
 - [ ] Session Claude Code : les petits Timi de la première ligne se collent au bord avec les raccords façon notch, sans liseré orange contre le bord.
 - [ ] Session Claude Code : sur deux écrans, la rangée reste sur l’écran du grand Timi.
 - [x] Session Claude Code : `$PPID` du hook est bien le PID du process `claude` (vérifié via les logs `ClaudeHooks`).
+- [ ] Session Claude Desktop : clic sur son petit Timi → Claude Desktop passe au premier plan sur la bonne conversation (lien `claude://code/continue?session=local_…`, non documenté).
+- [ ] Sur un Mac sans Timi ni identité de signature : « Setup Timi from https://github.com/chris2cant/timi » dans Claude Code installe, lance et branche les hooks sans intervention, hors `sudo` éventuel pour Xcode.
+- [ ] Session Claude Code dans Terminal, iTerm2, Ghostty et VS Code : clic sur son petit Timi → l’app passe au premier plan.
+- [ ] Session herdr lancée dans Terminal (hors cmux) : clic → pane herdr sélectionné et Terminal au premier plan.
+- [ ] Session « En attente » ou « A fini » silencieuse depuis plus de 5 h → son petit Timi disparaît, puis revient à son prochain événement ; au lancement de Timi, ces sessions n’apparaissent pas.
 
 ## Prochaines étapes proposées
 

@@ -1,6 +1,6 @@
 # Sessions Claude Code
 
-Timi peut afficher **un petit Timi par session Claude Code en cours**. Chaque petit Timi reflète le statut de sa session : il **t'interpelle** quand la session a besoin de toi, et un clic fait passer le focus sur son terminal (pane herdr et/ou workspace cmux).
+Timi peut afficher **un petit Timi par session Claude Code en cours**. Chaque petit Timi reflète le statut de sa session : il **t'interpelle** quand la session a besoin de toi, et un clic fait passer le focus sur son terminal (pane herdr, workspace cmux, ou l’app qui l’héberge : Terminal, iTerm2, Ghostty, VS Code…).
 
 Le grand Timi ne change pas. Les petits Timi se rangent à côté de lui et le suivent : en ligne horizontale quand il est collé en bas ou en haut (coins compris) ou flottant, en colonne verticale quand il est collé au bord gauche ou droit. Comme le grand Timi, ceux de la première ligne se collent au même bord de l’écran avec les mêmes raccords ; leur nom, leur bulle et leur saut passent du côté intérieur.
 
@@ -18,11 +18,21 @@ Le nom affiché sous chaque petit Timi est celui du projet : on remonte depuis l
 
 ## Installation
 
-Les hooks sont déclarés dans `~/.claude/settings.json`, hors du repo. Pour chacun des événements suivants, il faut une entrée identique :
+`./scripts/install.sh` installe Timi **et** les hooks. Pour ne gérer que les hooks :
 
-`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `Notification`, `Stop`, `SubagentStart`, `SubagentStop`, `SessionEnd`.
+```sh
+./scripts/claude-hooks.sh install    # ajoute ou met à jour l’entrée Timi des onze événements
+./scripts/claude-hooks.sh status     # code de sortie 0 si les onze sont à jour
+./scripts/claude-hooks.sh uninstall  # retire uniquement les entrées Timi
+```
 
-Voici l'entrée pour un événement (ici `Stop`) :
+Le script modifie `~/.claude/settings.json` (ou `$CLAUDE_CONFIG_DIR/settings.json`), hors du repo, avec le `jq` fourni par macOS. Il crée le fichier s’il n’existe pas, refuse un JSON invalide, conserve les autres hooks, ne duplique jamais l’entrée Timi et écrit une sauvegarde `settings.json.bak-timi` avant toute modification. En cas de problème : `mv ~/.claude/settings.json.bak-timi ~/.claude/settings.json`.
+
+Les sessions Claude Code déjà ouvertes doivent être relancées pour charger les nouveaux hooks.
+
+### Entrée installée
+
+Le script ajoute, pour chacun des événements `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `Notification`, `Stop`, `SubagentStart`, `SubagentStop` et `SessionEnd`, une entrée identique à celle-ci (ici `Stop`) :
 
 ```json
 "Stop": [
@@ -39,44 +49,7 @@ Voici l'entrée pour un événement (ici `Stop`) :
 ]
 ```
 
-### Ajout automatique avec jq (fish)
-
-La commande suivante ajoute l'entrée Timi à chacun des onze événements. Les hooks déjà présents sont conservés, et l’entrée n’est pas dupliquée : si elle existe déjà, sa commande est remplacée par la version à jour. Une sauvegarde est créée avant toute modification.
-
-```fish
-set cmd 'curl -s -m 1 --unix-socket "$HOME/Library/Application Support/Timi/claude-hooks.sock" -H "X-Timi-Pid: $PPID" -H "X-Timi-Cmux-Workspace: $CMUX_WORKSPACE_ID" -H "X-Timi-Cmux-Surface: $CMUX_SURFACE_ID" -H "X-Timi-Cmux-Socket: $CMUX_SOCKET_PATH" -H "X-Timi-Cmux-Cli: $CMUX_BUNDLED_CLI_PATH" -H "X-Timi-Herdr-Pane: $HERDR_PANE_ID" -H "X-Timi-Herdr-Socket: $HERDR_SOCKET_PATH" -H "X-Timi-Herdr-Cli: $HERDR_BIN_PATH" --data-binary @- http://timi/claude-hook >/dev/null 2>&1 || true'
-cp ~/.claude/settings.json ~/.claude/settings.json.bak-timi; and jq --arg cmd $cmd '
-  .hooks //= {}
-  | reduce ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest", "Notification", "Stop", "SubagentStart", "SubagentStop", "SessionEnd"][] as $ev (.;
-      .hooks[$ev] = (.hooks[$ev] // [])
-      | if any(.hooks[$ev][]?.hooks[]?; (.command // "") | contains("claude-hooks.sock"))
-        then .hooks[$ev] |= map(.hooks |= map(if (.command // "") | contains("claude-hooks.sock") then .command = $cmd else . end))
-        else .hooks[$ev] += [{"matcher": "", "hooks": [{"type": "command", "command": $cmd, "timeout": 5}]}]
-        end)
-' ~/.claude/settings.json > ~/.claude/settings.json.tmp; and mv ~/.claude/settings.json.tmp ~/.claude/settings.json
-```
-
-En cas de problème, restaurer la sauvegarde avec `mv ~/.claude/settings.json.bak-timi ~/.claude/settings.json`.
-
-Les sessions Claude Code déjà ouvertes doivent être relancées pour charger les nouveaux hooks.
-
-## Désinstallation
-
-Cette commande retire toutes les entrées dont la commande contient `claude-hooks.sock`, et laisse les autres hooks intacts :
-
-```fish
-cp ~/.claude/settings.json ~/.claude/settings.json.bak-timi; and jq '
-  if .hooks then
-    .hooks |= (
-      with_entries(.value |= (
-        map(.hooks |= map(select((.command // "") | contains("claude-hooks.sock") | not)))
-        | map(select((.hooks | length) > 0))
-      ))
-      | with_entries(select((.value | length) > 0))
-    )
-  else . end
-' ~/.claude/settings.json > ~/.claude/settings.json.tmp; and mv ~/.claude/settings.json.tmp ~/.claude/settings.json
-```
+Les variables cmux et herdr sont vides hors de ces outils : la même entrée sert pour tous les terminaux.
 
 ## États
 
@@ -85,7 +58,7 @@ cp ~/.claude/settings.json ~/.claude/settings.json.bak-timi; and jq '
 | Travaille | Regard qui balaie, respiration rapide, liseré et halo bleus | `UserPromptSubmit`, `PreToolUse` (hors questions), `PostToolUse`, `PostToolUseFailure`, `SubagentStart` |
 | A besoin de toi (urgent) | Saut toutes les 1,5 s, liseré et halo orange, bulle « ! » | `PermissionRequest` ; `PreToolUse` pour `AskUserQuestion` et `ExitPlanMode` ; `Notification` de type `permission_prompt` ou `elicitation_dialog` |
 | A fini, à toi (doux) | Frétillement à l'entrée, puis pulsation d'un point vert | `Stop` ; `Notification` de type `idle_prompt` |
-| En attente | Yeux mi-clos, immobile | `SessionStart` (un `SessionStart` après compactage ne change pas le statut) |
+| En attente | Moitié de sa taille, collé à son bord, yeux mi-clos, immobile | `SessionStart` (un `SessionStart` après compactage ne change pas le statut) |
 
 Règles complémentaires :
 
@@ -100,10 +73,14 @@ Règles complémentaires :
 
 Un clic sur un petit Timi focus le terminal de la session :
 
+- **Claude Desktop** : si le fichier `~/.claude/sessions/<pid>.json` de la session indique `"entrypoint": "claude-desktop"`, Timi ouvre `claude://code/continue?session=<hostSessionId>`. Claude Desktop passe alors au premier plan sur cette conversation. Ce lien n’est pas documenté : c’est celui qu’utilise le menu du Dock de Claude Desktop (« Continue Last Claude Code Session »). S’il change, le clic n’aura plus d’effet sur ces sessions.
 - **herdr** : si la session tourne dans un pane herdr, Timi lance `herdr agent focus <pane>` avec le pane et le socket transmis par le hook. herdr bascule alors sur le workspace, l’onglet et le pane de l’agent.
 - **cmux** : Timi lance la CLI cmux (`select-workspace`) avec le workspace et le socket transmis par le hook, puis active cmux. Quand herdr tourne dans cmux, les variables cmux sont héritées et cette étape amène au premier plan le workspace cmux qui héberge herdr.
+- **Autres terminaux et éditeurs** (Terminal, iTerm2, Ghostty, Warp, VS Code, Cursor…) : Timi remonte l’arbre des processus depuis le PID de `claude` (`sysctl`, sans permission) jusqu’à la première app macOS ordinaire, et la passe au premier plan. Seule l’app est activée : choisir sa fenêtre ou son onglet demanderait des Apple Events et une permission d’automatisation.
 
-Si la session ne tourne ni dans herdr ni dans cmux, Timi active simplement cmux s’il est ouvert. Un herdr lancé dans un autre terminal reçoit bien le focus du pane, mais ce terminal n’est pas mis au premier plan.
+Un herdr lancé dans un autre terminal que cmux reçoit le focus du pane, puis ce terminal est activé de la même façon, tant que le serveur herdr reste un descendant du terminal qui l’a lancé.
+
+Si aucune app n’est trouvée dans l’arbre (session dans tmux, dont le serveur est détaché du terminal, ou serveur herdr rattaché depuis un autre terminal), Timi active cmux s’il est ouvert, sinon rien.
 
 Le focus passe par un processus lancé directement, sans Apple Events : aucune permission d'automatisation n'est demandée.
 
@@ -131,6 +108,7 @@ Les petits Timi se masquent avec le grand Timi (menu Afficher/Masquer) et lorsqu
 ## Limites
 
 - Les sessions sont gardées **en mémoire uniquement**. Après un redémarrage de Timi, les sessions ouvertes sont relues depuis `~/.claude/sessions`.
-- Une session se termine sur `SessionEnd`, à la mort du process `claude` (vérifiée toutes les 10 s), ou après 2 h sans événement lorsque le PID n'est pas connu.
+- Une session se termine sur `SessionEnd`, à la mort du process `claude` (vérifiée toutes les 10 s), ou après 5 h sans événement lorsque le PID n'est pas connu.
+- Une session « En attente » ou « A fini, à toi » silencieuse depuis plus de 5 h est masquée, même si son process vit encore : Claude Desktop garde un process par conversation ouverte pendant des jours. Elle réapparaît à son prochain événement. Au lancement, l’ancienneté vient du champ `statusUpdatedAt` de son fichier. Une session « Travaille » ou « A besoin de toi » reste affichée tant que son process vit.
 - L'app **n'est pas sandboxée** : le socket dans `~/Library/Application Support` et le lancement des CLI herdr et cmux en dépendent. Si la sandbox est un jour activée, ces deux points seront à revoir.
 - Sans Timi lancé, les hooks n'ont aucun effet visible : Claude n'est pas bloqué, mais rien ne s'affiche.

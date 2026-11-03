@@ -52,7 +52,7 @@ struct SettingsView: View {
       }
       Section("Sessions Claude Code") {
         Toggle("Afficher un petit Timi par session", isOn: $appState.showsClaudeSessions)
-        Text("Les hooks Claude Code sont à installer à la main (voir docs/claude-code-sessions.md). Ils écrivent sur ce socket :")
+        Text("Les hooks Claude Code s’installent avec scripts/claude-hooks.sh install (voir docs/claude-code-sessions.md). Ils écrivent sur ce socket :")
           .font(.caption).foregroundStyle(.secondary)
         Text(ClaudeHookServer.defaultSocketURL.path)
           .font(.caption.monospaced()).foregroundStyle(.secondary)

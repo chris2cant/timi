@@ -185,16 +185,30 @@ final class ClaudeSessionStoreTests: XCTestCase {
   func testPruneRemovesDeadPIDAndLongSilentSessionsWithoutPID() {
     let store = makeStore()
     store.handle(request("Stop", session: "dead", pid: 1))
-    store.handle(request("Stop", session: "alive", pid: 2))
+    store.handle(request("PostToolUse", session: "alive", pid: 2))
     store.handle(request("Stop", session: "silent"))
     deadPIDs = [1]
-    clock.addTimeInterval(2 * 3600 - 1)
+    clock.addTimeInterval(5 * 3600 - 1)
     store.pruneSessions()
     XCTAssertEqual(store.sessions.map(\.id), ["alive", "silent"])
 
     clock.addTimeInterval(2)
     store.pruneSessions()
     XCTAssertEqual(store.sessions.map(\.id), ["alive"])
+  }
+
+  func testPruneRemovesLongAsleepSessionsWithLivePIDUntilTheirNextEvent() {
+    let store = makeStore()
+    store.handle(request("SessionStart", session: "idle", pid: 1))
+    store.handle(request("Stop", session: "done", pid: 2))
+    store.handle(request("PermissionRequest", session: "asks", pid: 3))
+    store.handle(request("PostToolUse", session: "works", pid: 4))
+    clock.addTimeInterval(5 * 3600 + 1)
+    store.pruneSessions()
+    XCTAssertEqual(store.sessions.map(\.id), ["asks", "works"])
+
+    store.handle(request("UserPromptSubmit", session: "done", pid: 2))
+    XCTAssertEqual(store.sessions.map(\.id), ["asks", "works", "done"])
   }
 
   func testSeedAddsLiveUnknownSessions() {
@@ -215,12 +229,33 @@ final class ClaudeSessionStoreTests: XCTestCase {
     XCTAssertEqual(store.sessions[2].context.pid, 4)
   }
 
+  func testSeedSkipsLongAsleepSessionsAndKeepsTheirLastActivity() {
+    let store = makeStore()
+    let millis = { (date: Date) in date.timeIntervalSince1970 * 1000 }
+    store.seed([
+      ClaudeSessionDiscovery.Entry(
+        sessionId: "asleep", pid: 1, status: "idle",
+        statusUpdatedAt: millis(clock.addingTimeInterval(-6 * 3600))),
+      ClaudeSessionDiscovery.Entry(
+        sessionId: "busy", pid: 2, status: "busy",
+        statusUpdatedAt: millis(clock.addingTimeInterval(-6 * 3600))),
+      ClaudeSessionDiscovery.Entry(
+        sessionId: "recent", pid: 3, status: "idle",
+        statusUpdatedAt: millis(clock.addingTimeInterval(-4 * 3600))),
+    ])
+    XCTAssertEqual(store.sessions.map(\.id), ["busy", "recent"])
+
+    clock.addTimeInterval(3600 + 1)
+    store.pruneSessions()
+    XCTAssertEqual(store.sessions.map(\.id), ["busy"])
+  }
+
   func testHeartbeatKeepsSilentSessionAlive() {
     let store = makeStore()
     store.handle(request("Stop"))
-    clock.addTimeInterval(3600)
+    clock.addTimeInterval(3 * 3600)
     store.handle(request("PostToolUse"))
-    clock.addTimeInterval(3600 + 60)
+    clock.addTimeInterval(3 * 3600 + 60)
     store.pruneSessions()
     XCTAssertEqual(store.sessions.count, 1)
   }
@@ -255,6 +290,53 @@ final class ClaudeSessionDiscoveryTests: XCTestCase {
 
   func testInvalidPIDIsRejected() {
     XCTAssertNil(ClaudeSessionDiscovery.entry(from: Data(#"{"pid":0,"sessionId":"s"}"#.utf8)))
+  }
+
+  func testEntryIsReadByPID() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try Data(#"{"pid":12,"sessionId":"s","entrypoint":"cli","statusUpdatedAt":5000}"#.utf8)
+      .write(to: directory.appending(path: "12.json"))
+    try Data(#"{"pid":99,"sessionId":"other"}"#.utf8).write(to: directory.appending(path: "13.json"))
+
+    let entry = ClaudeSessionDiscovery.entry(pid: 12, in: directory)
+    XCTAssertEqual(entry?.entrypoint, "cli")
+    XCTAssertEqual(entry.flatMap(ClaudeSessionDiscovery.lastActivity(of:)), Date(timeIntervalSince1970: 5))
+    XCTAssertNil(ClaudeSessionDiscovery.entry(pid: 13, in: directory))
+    XCTAssertNil(ClaudeSessionDiscovery.entry(pid: 14, in: directory))
+  }
+
+  func testDesktopURLOnlyForClaudeDesktopSessions() {
+    func entry(_ entrypoint: String?, _ hostSessionId: String?) -> ClaudeSessionDiscovery.Entry {
+      ClaudeSessionDiscovery.Entry(
+        sessionId: "s", pid: 1, entrypoint: entrypoint, hostSessionId: hostSessionId)
+    }
+    XCTAssertEqual(
+      ClaudeSessionDiscovery.desktopURL(of: entry("claude-desktop", "local_b1e9cb12-9d3b")),
+      URL(string: "claude://code/continue?session=local_b1e9cb12-9d3b"))
+    XCTAssertNil(ClaudeSessionDiscovery.desktopURL(of: entry("cli", "local_abc")))
+    XCTAssertNil(ClaudeSessionDiscovery.desktopURL(of: entry("claude-desktop", nil)))
+    XCTAssertNil(ClaudeSessionDiscovery.desktopURL(of: entry("claude-desktop", "local_a&b=c")))
+  }
+}
+
+final class SessionFocuserTests: XCTestCase {
+  // claude 40 → shell 30 → login 20 → Terminal 10 → launchd 1
+  private let parents: [pid_t: pid_t] = [40: 30, 30: 20, 20: 10, 10: 1]
+
+  private func host(of pid: pid_t, apps: Set<pid_t>) -> pid_t? {
+    SessionFocuser.hostApplicationPID(of: pid, parent: { self.parents[$0] }, isApplication: apps.contains)
+  }
+
+  func testFirstApplicationAncestorIsTheHost() {
+    XCTAssertEqual(host(of: 40, apps: [10]), 10)
+    XCTAssertEqual(host(of: 40, apps: [10, 30]), 30)
+  }
+
+  func testNoApplicationBelowLaunchdOrUnknownParent() {
+    XCTAssertNil(host(of: 40, apps: [1]))
+    XCTAssertNil(host(of: 99, apps: [10]))
   }
 }
 

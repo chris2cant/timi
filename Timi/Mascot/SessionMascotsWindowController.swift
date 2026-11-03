@@ -26,7 +26,7 @@ private final class SessionMascotHostingView: NSHostingView<SessionMascotView> {
   private func isClickable(_ localPoint: CGPoint) -> Bool {
     // Silhouette and label only: the room left for the hop and the "!" bubble stays
     // click-through.
-    let frames = SessionMascotView.frames(for: rootView.edges)
+    let frames = SessionMascotView.frames(for: rootView.edges, isAsleep: rootView.isAsleep)
     let y = isFlipped ? bounds.height - localPoint.y : localPoint.y
     return frames.body.union(frames.label).contains(CGPoint(x: localPoint.x, y: y))
   }
@@ -145,7 +145,7 @@ final class SessionMascotsWindowController {
     edges: MascotAttachmentEdges,
     in panel: NSPanel
   ) -> SessionMascotView {
-    let body = SessionMascotView.frames(for: edges).body
+    let body = SessionMascotView.frames(for: edges, isAsleep: session.status == .idle).body
     let center = CGPoint(x: body.midX, y: body.midY)
     return SessionMascotView(session: session, edges: edges) { [weak panel] in
       guard let panel else { return .zero }

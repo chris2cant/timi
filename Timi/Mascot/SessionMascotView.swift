@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SessionMascotView: View {
   nonisolated static let silhouetteSize = CGSize(width: 60, height: 42)
+  /// A sleeping (idle) session shrinks so it reads as asleep at a glance.
+  nonisolated private static let sleepingScale: CGFloat = 0.5
   nonisolated private static let cornerRadius: CGFloat = 10
   /// Room around the silhouette for the joins drawn toward an attached screen edge.
   nonisolated private static let joinMargin: CGFloat = 10
@@ -14,11 +16,15 @@ struct SessionMascotView: View {
 
   /// Silhouette and label frames in window coordinates (origin bottom-left, y up).
   /// The silhouette touches the window side facing the attached screen edge, and the
-  /// label sits on the inner side.
-  nonisolated static func frames(for edges: MascotAttachmentEdges) -> (body: CGRect, label: CGRect) {
+  /// label sits on the inner side. An asleep silhouette is smaller and the label follows it.
+  nonisolated static func frames(
+    for edges: MascotAttachmentEdges,
+    isAsleep: Bool
+  ) -> (body: CGRect, label: CGRect) {
     let width = windowSize.width
     let height = windowSize.height
-    let body = silhouetteSize
+    let scale = isAsleep ? sleepingScale : 1
+    let body = CGSize(width: silhouetteSize.width * scale, height: silhouetteSize.height * scale)
     let label = labelSize
     let centeredX = (width - body.width) / 2
     let centeredLabelX = (width - label.width) / 2
@@ -66,17 +72,22 @@ struct SessionMascotView: View {
   @State private var wiggleCount = 0
 
   private var dock: Dock { Dock(edges) }
+  var isAsleep: Bool { session.status == .idle }
 
   var body: some View {
-    let frames = Self.frames(for: edges)
+    let frames = Self.frames(for: edges, isAsleep: isAsleep)
 
     ZStack(alignment: .topLeading) {
+      // Drawn at full size and scaled around its center, which lands on the smaller body
+      // frame since the join margin is symmetric.
       mascot
+        .scaleEffect(isAsleep ? Self.sleepingScale : 1)
         .position(x: frames.body.midX, y: Self.windowSize.height - frames.body.midY)
       label
         .frame(width: frames.label.width, height: frames.label.height, alignment: dock.labelAlignment)
         .position(x: frames.label.midX, y: Self.windowSize.height - frames.label.midY)
     }
+    .animation(reduceMotion ? nil : .spring(duration: 0.45), value: isAsleep)
     .frame(width: Self.windowSize.width, height: Self.windowSize.height)
     .help(helpText)
     .accessibilityElement(children: .ignore)
@@ -96,6 +107,8 @@ struct SessionMascotView: View {
       margin: Self.joinMargin
     )
     let size = Self.silhouetteSize
+    // Captured by value: the keyframe closures are Sendable.
+    let dock = dock
     let anchor = dock.anchor(bodySize: size, margin: Self.joinMargin)
 
     return ZStack {

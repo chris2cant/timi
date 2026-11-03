@@ -13,7 +13,7 @@ final class ClaudeSessionStore: ObservableObject {
   private var lastActivity: [String: Date] = [:]
 
   private static let livenessInterval: TimeInterval = 10
-  private static let silenceTimeout: TimeInterval = 2 * 60 * 60
+  private static let silenceTimeout: TimeInterval = 5 * 60 * 60
 
   init(
     now: @escaping () -> Date = Date.init,
@@ -53,19 +53,23 @@ final class ClaudeSessionStore: ObservableObject {
     }
   }
 
-  /// Adds sessions found on disk at launch, skipping known sessions and dead processes.
+  /// Adds sessions found on disk at launch, skipping known sessions, dead processes
+  /// and sessions that would be pruned right away.
   func seed(_ entries: [ClaudeSessionDiscovery.Entry]) {
     var added: [ClaudeSession] = []
+    let current = now()
     for entry in entries where isProcessAlive(entry.pid) {
       guard !(sessions + added).contains(where: { $0.id == entry.sessionId }) else { continue }
-      lastActivity[entry.sessionId] = now()
-      added.append(
-        ClaudeSession(
-          id: entry.sessionId,
-          projectName: ClaudeSession.projectName(forWorkingDirectory: entry.cwd),
-          status: ClaudeSessionDiscovery.status(of: entry),
-          context: ClaudeHookContext(pid: entry.pid)
-        ))
+      let session = ClaudeSession(
+        id: entry.sessionId,
+        projectName: ClaudeSession.projectName(forWorkingDirectory: entry.cwd),
+        status: ClaudeSessionDiscovery.status(of: entry),
+        context: ClaudeHookContext(pid: entry.pid)
+      )
+      let activity = ClaudeSessionDiscovery.lastActivity(of: entry) ?? current
+      guard !Self.isAsleep(session, lastActivity: activity, at: current) else { continue }
+      lastActivity[entry.sessionId] = activity
+      added.append(session)
     }
     if !added.isEmpty {
       sessions += added
@@ -90,13 +94,24 @@ final class ClaudeSessionStore: ObservableObject {
   func pruneSessions() {
     let current = now()
     let alive = sessions.filter { session in
-      if let pid = session.context.pid { return isProcessAlive(pid) }
-      return current.timeIntervalSince(lastActivity[session.id] ?? current) <= Self.silenceTimeout
+      if let pid = session.context.pid, !isProcessAlive(pid) { return false }
+      return !Self.isAsleep(session, lastActivity: lastActivity[session.id] ?? current, at: current)
     }
     if alive.count != sessions.count {
       sessions = alive
       lastActivity = lastActivity.filter { id, _ in alive.contains { $0.id == id } }
     }
+  }
+
+  /// Silent for longer than `silenceTimeout` with nothing to show. A live process is not
+  /// enough to stay: Claude Desktop keeps one per open conversation for days.
+  /// The session comes back at its next hook event.
+  private static func isAsleep(_ session: ClaudeSession, lastActivity: Date, at current: Date)
+    -> Bool
+  {
+    guard current.timeIntervalSince(lastActivity) > silenceTimeout else { return false }
+    // Without a PID, silence is the only end signal. A long tool run or a pending request stays.
+    return session.context.pid == nil || [.idle, .yourTurn].contains(session.status)
   }
 
   private static func merged(_ old: ClaudeHookContext, with new: ClaudeHookContext)
