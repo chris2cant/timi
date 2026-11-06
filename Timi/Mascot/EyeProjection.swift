@@ -35,6 +35,50 @@ enum EyeProjection {
     return HeadGaze(yaw: yaw, pitch: pitch, roll: roll)
   }
 
+  /// Fixation yaws along one line of text and how long the eyes rest on each.
+  private static let readingFixations: [(yaw: CGFloat, hold: TimeInterval)] = [
+    (-20, 0.3), (-7, 0.36), (6, 0.26), (19, 0.32),
+  ]
+  private static let readingSaccade: TimeInterval = 0.05
+  private static let readingReturn: TimeInterval = 0.18
+  /// Each line sits a little lower than the previous one, then the page starts over.
+  private static let readingLinePitches: [CGFloat] = [-1, -3, -5]
+  private static let readingLineDuration = readingFixations.reduce(0) { $0 + $1.hold }
+    + readingSaccade * Double(readingFixations.count - 1) + readingReturn
+
+  /// Reading like a person does: quick jumps between short fixations along a line, then a
+  /// return sweep to the start of the next line.
+  static func readingGaze(at time: TimeInterval) -> HeadGaze {
+    let fixations = readingFixations
+    let line = readingLineDuration
+    let lineIndex = Int((time / line).rounded(.down))
+    var t = time - Double(lineIndex) * line
+    let pitches = readingLinePitches
+    // Wrapped for negative times too.
+    let pitchIndex = (lineIndex % pitches.count + pitches.count) % pitches.count
+    let pitch = pitches[pitchIndex]
+    let nextPitch = pitches[(pitchIndex + 1) % pitches.count]
+
+    for (index, fixation) in fixations.enumerated() {
+      if t < fixation.hold {
+        return HeadGaze(yaw: fixation.yaw, pitch: pitch, roll: 0)
+      }
+      t -= fixation.hold
+      guard index + 1 < fixations.count else { break }
+      if t < readingSaccade {
+        let p = smoothstep(t / readingSaccade)
+        let yaw = fixation.yaw + (fixations[index + 1].yaw - fixation.yaw) * p
+        return HeadGaze(yaw: yaw, pitch: pitch, roll: 0)
+      }
+      t -= readingSaccade
+    }
+
+    let p = smoothstep(min(t / readingReturn, 1))
+    let first = fixations[0].yaw
+    let last = fixations[fixations.count - 1].yaw
+    return HeadGaze(yaw: last + (first - last) * p, pitch: pitch + (nextPitch - pitch) * p, roll: 0)
+  }
+
   static let maxTrackingYaw: CGFloat = 29
   static let maxTrackingPitch: CGFloat = 20
   static let trackingRestPitch: CGFloat = 0
@@ -44,7 +88,7 @@ enum EyeProjection {
   /// Gaze toward a pointer offset from the mascot center (screen space, y up).
   /// `tanh` saturates smoothly so a far pointer never overshoots the sphere.
   static func gaze(towardOffset offset: CGVector) -> HeadGaze {
-    return HeadGaze(
+    HeadGaze(
       yaw: maxTrackingYaw * tanh(offset.dx / trackingDistanceScale),
       pitch: trackingRestPitch + maxTrackingPitch * tanh(offset.dy / trackingDistanceScale),
       roll: trackingRoll
@@ -89,6 +133,10 @@ enum EyeProjection {
     phase: TimeInterval = 0
   ) -> CGFloat {
     CGFloat(sin(((time + phase) / period) * Double.pi * 2))
+  }
+
+  private static func smoothstep(_ x: Double) -> CGFloat {
+    CGFloat(x * x * (3 - 2 * x))
   }
 
   private static func radians(_ degrees: CGFloat) -> CGFloat {

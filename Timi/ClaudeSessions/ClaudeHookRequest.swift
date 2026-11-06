@@ -45,6 +45,8 @@ enum ClaudeHookRequestParser {
     /// Headers or body not fully received yet.
     case needsMoreData
     case request(ClaudeHookRequest)
+    /// A status line payload sent to `/claude-statusline`; `nil` when it has no limits.
+    case statusLine(ClaudeUsageLimits?)
     /// Malformed HTTP or a payload without `hook_event_name` / `session_id`.
     case invalid
   }
@@ -58,7 +60,8 @@ enum ClaudeHookRequestParser {
 
     let head = String(decoding: data[data.startIndex..<headerEnd.lowerBound], as: UTF8.self)
     var lines = head.components(separatedBy: "\r\n")
-    guard lines.removeFirst().hasPrefix("POST ") else { return .invalid }
+    let requestLine = lines.removeFirst()
+    guard requestLine.hasPrefix("POST ") else { return .invalid }
 
     var headers: [String: String] = [:]
     for line in lines {
@@ -74,9 +77,14 @@ enum ClaudeHookRequestParser {
     }
     let body = data[headerEnd.upperBound...]
     guard body.count >= contentLength else { return .needsMoreData }
+    let payload = body.prefix(contentLength)
+
+    if requestLine.hasPrefix("POST /claude-statusline ") {
+      return .statusLine(ClaudeUsageLimits.fromStatusLine(payload))
+    }
 
     guard
-      let event = try? JSONDecoder().decode(ClaudeHookEvent.self, from: body.prefix(contentLength)),
+      let event = try? JSONDecoder().decode(ClaudeHookEvent.self, from: payload),
       !event.sessionID.isEmpty
     else { return .invalid }
 

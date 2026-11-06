@@ -4,6 +4,7 @@ import SwiftUI
 final class MascotInteractionState: ObservableObject {
   @Published private(set) var clickCount = 0
   @Published private(set) var attachmentEdges: MascotAttachmentEdges = []
+  @Published private(set) var eyesArePaused = false
   var activationHandler: (() -> Void)?
   var pointerOffsetProvider: (() -> CGVector?)?
 
@@ -13,54 +14,35 @@ final class MascotInteractionState: ObservableObject {
   }
 
   func updateAttachmentEdges(_ edges: MascotAttachmentEdges) {
+    // Called on every drag step: @Published would redraw the mascot even when unchanged.
+    guard edges != attachmentEdges else { return }
     attachmentEdges = edges
   }
-}
 
-/// Smooths the gaze between frames. Reference type on purpose: it is mutated
-/// from the `TimelineView` body and must not trigger SwiftUI invalidations.
-@MainActor
-private final class GazeSmoother {
-  private var current: HeadGaze?
-  private var lastTime: TimeInterval?
-  private let responseTime: TimeInterval = 0.08
-
-  func smoothed(toward target: HeadGaze, at time: TimeInterval) -> HeadGaze {
-    defer { lastTime = time }
-    guard let current, let lastTime else {
-      self.current = target
-      return target
-    }
-
-    let dt = max(0, min(time - lastTime, 0.25))
-    let k = CGFloat(1 - exp(-dt / responseTime))
-    let next = HeadGaze(
-      yaw: current.yaw + (target.yaw - current.yaw) * k,
-      pitch: current.pitch + (target.pitch - current.pitch) * k,
-      roll: current.roll + (target.roll - current.roll) * k
-    )
-    self.current = next
-    return next
+  func updateEyesArePaused(_ isPaused: Bool) {
+    guard isPaused != eyesArePaused else { return }
+    eyesArePaused = isPaused
   }
 }
 
 struct MascotView: View {
+  static let cornerRadius: CGFloat = 22
+  static let eyeScale: CGFloat = 72
+  static let glowRadius: CGFloat = 4
+
   @ObservedObject var interactionState: MascotInteractionState
   @ObservedObject var dictationCoordinator: DictationCoordinator
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  @State private var isBreathing = false
   @State private var isHovering = false
   @State private var isReacting = false
-  @State private var eyesAreOpen = true
-  @State private var gazeSmoother = GazeSmoother()
-
-  private let cornerRadius: CGFloat = 22
+  @State private var gestureTrigger: GestureTrigger?
+  @State private var recentClicks: [Date] = []
 
   private var silhouette: MascotSilhouette {
     MascotSilhouette(
       attachmentEdges: interactionState.attachmentEdges,
-      cornerRadius: cornerRadius
+      cornerRadius: Self.cornerRadius
     )
   }
 
@@ -87,13 +69,14 @@ struct MascotView: View {
           silhouette
         }
         .scaleEffect(
-          x: motionScale(
-            breathing: isBreathing ? 1.006 : 0.994,
-            interaction: isReacting ? 1.025 : (isHovering ? 1.012 : 1)
-          ),
-          y: motionScale(
-            breathing: isBreathing ? 1.012 : 0.988,
-            interaction: isReacting ? 0.975 : (isHovering ? 1.012 : 1)
+          x: reduceMotion ? 1 : (isReacting ? 1.025 : (isHovering ? 1.012 : 1)),
+          y: reduceMotion ? 1 : (isReacting ? 0.975 : (isHovering ? 1.012 : 1))
+        )
+        .modifier(
+          Breathing(
+            period: reduceMotion || interactionState.eyesArePaused ? nil : 2.6,
+            inhale: CGSize(width: 1.006, height: 1.012),
+            exhale: CGSize(width: 0.994, height: 0.988)
           )
         )
     }
@@ -104,18 +87,10 @@ struct MascotView: View {
     .contentShape(silhouette)
     .onHover { hovering in
       isHovering = hovering
-    }
-    .onAppear {
-      updateBreathing()
-    }
-    .onChange(of: reduceMotion) {
-      updateBreathing()
+      if hovering { gestureTrigger.play(.aha) }
     }
     .onChange(of: interactionState.clickCount) {
       reactToClick()
-    }
-    .task {
-      await blinkPeriodically()
     }
     .animation(reduceMotion ? nil : .spring(duration: 0.22), value: isHovering)
     .animation(reduceMotion ? nil : .spring(duration: 0.2), value: isReacting)
@@ -225,73 +200,27 @@ struct MascotView: View {
   }
 
   private var sphericalEyes: some View {
-    TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { timeline in
-      let gaze = currentGaze(at: timeline.date.timeIntervalSinceReferenceDate)
-      Canvas { context, size in
-        let projectionRadius = min(size.width, size.height) / 2
-        let eyeScale: CGFloat = 72
-        let eyes = EyeProjection.eyes(for: gaze, radius: projectionRadius)
-        let width = EyeProjection.eyeWidth * eyeScale
-        let height = EyeProjection.eyeHeight * eyeScale
-        let center = CGPoint(x: size.width / 2, y: size.height / 2 + 1)
-        let blinkScale: CGFloat = eyesAreOpen ? 1 : 0.06
-        let capsule = Path(
-          roundedRect: CGRect(
-            x: -width / 2,
-            y: -height / 2,
-            width: width,
-            height: height
-          ),
-          cornerRadius: width / 2
-        )
-
-        for eye in eyes where eye.depth > 0.02 {
-          let transform = CGAffineTransform(
-            a: eye.a,
-            b: eye.b * blinkScale,
-            c: eye.c,
-            d: eye.d * blinkScale,
-            tx: center.x + eye.x,
-            ty: center.y + eye.y
-          )
-          let opacity = min(1, eye.depth / 0.12) * 0.96
-          context.fill(
-            capsule.applying(transform),
-            with: .color(.white.opacity(opacity))
-          )
-        }
-      }
-    }
+    AnimatedEyes(
+      mood: isHovering ? .content : .neutral,
+      gaze: currentGaze(at:),
+      trigger: gestureTrigger,
+      eyeScale: Self.eyeScale,
+      ambientGestures: [.lookAround, .lookAround, .doubleBlink, .glanceUp, .wink, .yawn],
+      ambientInterval: 9...20,
+      isPaused: interactionState.eyesArePaused,
+      glowRadius: Self.glowRadius
+    )
     .frame(
       width: MascotWindowController.mascotSize.width,
       height: MascotWindowController.mascotSize.height
     )
-    .animation(.easeInOut(duration: 0.09), value: eyesAreOpen)
-    .accessibilityHidden(true)
   }
 
   private func currentGaze(at time: TimeInterval) -> HeadGaze {
     if reduceMotion { return EyeProjection.restingGaze }
 
-    let target = interactionState.pointerOffsetProvider?().map(EyeProjection.gaze(towardOffset:))
+    return interactionState.pointerOffsetProvider?().map(EyeProjection.gaze(towardOffset:))
       ?? EyeProjection.wanderingGaze(at: time)
-    return gazeSmoother.smoothed(toward: target, at: time)
-  }
-
-  private func motionScale(breathing: CGFloat, interaction: CGFloat) -> CGFloat {
-    reduceMotion ? 1 : breathing * interaction
-  }
-
-  private func updateBreathing() {
-    if reduceMotion {
-      withAnimation(.linear(duration: 0.01)) {
-        isBreathing = false
-      }
-    } else {
-      withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
-        isBreathing = true
-      }
-    }
   }
 
   private func reactToClick() {
@@ -301,27 +230,51 @@ struct MascotView: View {
       try? await Task.sleep(for: .milliseconds(220))
       isReacting = false
     }
-  }
 
-  @MainActor
-  private func blinkPeriodically() async {
-    while !Task.isCancelled {
-      do {
-        try await Task.sleep(for: .seconds(Double.random(in: 3.5...6.5)))
-      } catch {
-        return
-      }
-
-      eyesAreOpen = false
-
-      do {
-        try await Task.sleep(for: .milliseconds(130))
-      } catch {
-        return
-      }
-
-      eyesAreOpen = true
+    // Three quick clicks leave Timi dizzy; a single one makes it giggle.
+    let now = Date()
+    recentClicks = recentClicks.filter { now.timeIntervalSince($0) < 1.2 } + [now]
+    if recentClicks.count >= 3 {
+      recentClicks = []
+      gestureTrigger.play(.dizzy)
+    } else {
+      gestureTrigger.play(.giggle)
     }
+  }
+}
+
+/// Slow, endless squash and stretch of a mascot. `period` is one breath in or out; nil
+/// holds the view still at its natural size.
+struct Breathing: ViewModifier {
+  let period: Double?
+  /// Scales at the top of an inhale and at the bottom of an exhale.
+  let inhale: CGSize
+  let exhale: CGSize
+  var anchor: UnitPoint = .center
+
+  @State private var isInhaling = false
+
+  func body(content: Content) -> some View {
+    let scale = period == nil ? CGSize(width: 1, height: 1) : (isInhaling ? inhale : exhale)
+
+    content
+      .scaleEffect(x: scale.width, y: scale.height, anchor: anchor)
+      // One finite animation per breath rather than `repeatForever`, which only a new view
+      // identity can stop: a new pace (or none) then takes over without resetting the face.
+      .task(id: period) {
+        guard let period else { return }
+
+        while !Task.isCancelled {
+          withAnimation(.easeInOut(duration: period)) {
+            isInhaling.toggle()
+          }
+          do {
+            try await Task.sleep(for: .seconds(period))
+          } catch {
+            return
+          }
+        }
+      }
   }
 }
 
@@ -332,26 +285,40 @@ struct MascotSilhouette: Shape {
   var margin: CGFloat = MascotWindowController.drawingMargin
 
   func path(in rect: CGRect) -> Path {
-    let bodyRect = rect.insetBy(dx: margin, dy: margin)
-    let radius = min(cornerRadius, min(bodyRect.width, bodyRect.height) / 2)
+    let body = rect.insetBy(dx: margin, dy: margin)
+    let radius = min(cornerRadius, min(body.width, body.height) / 2)
     let top = attachmentEdges.contains(.top)
     let right = attachmentEdges.contains(.right)
     let bottom = attachmentEdges.contains(.bottom)
     let left = attachmentEdges.contains(.left)
 
-    let topLeft = topLeftCorner(in: bodyRect, radius: radius, top: top, left: left)
-    let topRight = topRightCorner(in: bodyRect, radius: radius, top: top, right: right)
-    let bottomRight = bottomRightCorner(
-      in: bodyRect,
+    let topLeft = Corner(
+      at: CGPoint(x: body.minX, y: body.minY),
+      inward: CGVector(dx: 1, dy: 1),
       radius: radius,
-      bottom: bottom,
-      right: right
+      onHorizontalEdge: top,
+      onVerticalEdge: left
     )
-    let bottomLeft = bottomLeftCorner(
-      in: bodyRect,
+    let topRight = Corner(
+      at: CGPoint(x: body.maxX, y: body.minY),
+      inward: CGVector(dx: -1, dy: 1),
       radius: radius,
-      bottom: bottom,
-      left: left
+      onHorizontalEdge: top,
+      onVerticalEdge: right
+    )
+    let bottomRight = Corner(
+      at: CGPoint(x: body.maxX, y: body.maxY),
+      inward: CGVector(dx: -1, dy: -1),
+      radius: radius,
+      onHorizontalEdge: bottom,
+      onVerticalEdge: right
+    )
+    let bottomLeft = Corner(
+      at: CGPoint(x: body.minX, y: body.maxY),
+      inward: CGVector(dx: 1, dy: -1),
+      radius: radius,
+      onHorizontalEdge: bottom,
+      onVerticalEdge: left
     )
 
     var path = Path()
@@ -368,133 +335,29 @@ struct MascotSilhouette: Shape {
     return path
   }
 
+  /// A rounded body corner. Along an attached edge the curve flares outward instead, into
+  /// the join with the screen edge; between two attached edges the corner stays square.
   private struct Corner {
     let horizontalPoint: CGPoint
     let verticalPoint: CGPoint
     let controlPoint: CGPoint
-  }
 
-  private func topLeftCorner(
-    in rect: CGRect,
-    radius: CGFloat,
-    top: Bool,
-    left: Bool
-  ) -> Corner {
-    if top, left {
-      let point = CGPoint(x: rect.minX, y: rect.minY)
-      return Corner(horizontalPoint: point, verticalPoint: point, controlPoint: point)
+    /// `inward` points from the corner toward the body's center, one unit per axis.
+    init(
+      at point: CGPoint,
+      inward: CGVector,
+      radius: CGFloat,
+      onHorizontalEdge: Bool,
+      onVerticalEdge: Bool
+    ) {
+      controlPoint = point
+      if onHorizontalEdge, onVerticalEdge {
+        horizontalPoint = point
+        verticalPoint = point
+      } else {
+        horizontalPoint = CGPoint(x: point.x + inward.dx * (onHorizontalEdge ? -radius : radius), y: point.y)
+        verticalPoint = CGPoint(x: point.x, y: point.y + inward.dy * (onVerticalEdge ? -radius : radius))
+      }
     }
-    if top {
-      return Corner(
-        horizontalPoint: CGPoint(x: rect.minX - radius, y: rect.minY),
-        verticalPoint: CGPoint(x: rect.minX, y: rect.minY + radius),
-        controlPoint: CGPoint(x: rect.minX, y: rect.minY)
-      )
-    }
-    if left {
-      return Corner(
-        horizontalPoint: CGPoint(x: rect.minX + radius, y: rect.minY),
-        verticalPoint: CGPoint(x: rect.minX, y: rect.minY - radius),
-        controlPoint: CGPoint(x: rect.minX, y: rect.minY)
-      )
-    }
-    return Corner(
-      horizontalPoint: CGPoint(x: rect.minX + radius, y: rect.minY),
-      verticalPoint: CGPoint(x: rect.minX, y: rect.minY + radius),
-      controlPoint: CGPoint(x: rect.minX, y: rect.minY)
-    )
-  }
-
-  private func topRightCorner(
-    in rect: CGRect,
-    radius: CGFloat,
-    top: Bool,
-    right: Bool
-  ) -> Corner {
-    if top, right {
-      let point = CGPoint(x: rect.maxX, y: rect.minY)
-      return Corner(horizontalPoint: point, verticalPoint: point, controlPoint: point)
-    }
-    if top {
-      return Corner(
-        horizontalPoint: CGPoint(x: rect.maxX + radius, y: rect.minY),
-        verticalPoint: CGPoint(x: rect.maxX, y: rect.minY + radius),
-        controlPoint: CGPoint(x: rect.maxX, y: rect.minY)
-      )
-    }
-    if right {
-      return Corner(
-        horizontalPoint: CGPoint(x: rect.maxX - radius, y: rect.minY),
-        verticalPoint: CGPoint(x: rect.maxX, y: rect.minY - radius),
-        controlPoint: CGPoint(x: rect.maxX, y: rect.minY)
-      )
-    }
-    return Corner(
-      horizontalPoint: CGPoint(x: rect.maxX - radius, y: rect.minY),
-      verticalPoint: CGPoint(x: rect.maxX, y: rect.minY + radius),
-      controlPoint: CGPoint(x: rect.maxX, y: rect.minY)
-    )
-  }
-
-  private func bottomRightCorner(
-    in rect: CGRect,
-    radius: CGFloat,
-    bottom: Bool,
-    right: Bool
-  ) -> Corner {
-    if bottom, right {
-      let point = CGPoint(x: rect.maxX, y: rect.maxY)
-      return Corner(horizontalPoint: point, verticalPoint: point, controlPoint: point)
-    }
-    if bottom {
-      return Corner(
-        horizontalPoint: CGPoint(x: rect.maxX + radius, y: rect.maxY),
-        verticalPoint: CGPoint(x: rect.maxX, y: rect.maxY - radius),
-        controlPoint: CGPoint(x: rect.maxX, y: rect.maxY)
-      )
-    }
-    if right {
-      return Corner(
-        horizontalPoint: CGPoint(x: rect.maxX - radius, y: rect.maxY),
-        verticalPoint: CGPoint(x: rect.maxX, y: rect.maxY + radius),
-        controlPoint: CGPoint(x: rect.maxX, y: rect.maxY)
-      )
-    }
-    return Corner(
-      horizontalPoint: CGPoint(x: rect.maxX - radius, y: rect.maxY),
-      verticalPoint: CGPoint(x: rect.maxX, y: rect.maxY - radius),
-      controlPoint: CGPoint(x: rect.maxX, y: rect.maxY)
-    )
-  }
-
-  private func bottomLeftCorner(
-    in rect: CGRect,
-    radius: CGFloat,
-    bottom: Bool,
-    left: Bool
-  ) -> Corner {
-    if bottom, left {
-      let point = CGPoint(x: rect.minX, y: rect.maxY)
-      return Corner(horizontalPoint: point, verticalPoint: point, controlPoint: point)
-    }
-    if bottom {
-      return Corner(
-        horizontalPoint: CGPoint(x: rect.minX - radius, y: rect.maxY),
-        verticalPoint: CGPoint(x: rect.minX, y: rect.maxY - radius),
-        controlPoint: CGPoint(x: rect.minX, y: rect.maxY)
-      )
-    }
-    if left {
-      return Corner(
-        horizontalPoint: CGPoint(x: rect.minX + radius, y: rect.maxY),
-        verticalPoint: CGPoint(x: rect.minX, y: rect.maxY + radius),
-        controlPoint: CGPoint(x: rect.minX, y: rect.maxY)
-      )
-    }
-    return Corner(
-      horizontalPoint: CGPoint(x: rect.minX + radius, y: rect.maxY),
-      verticalPoint: CGPoint(x: rect.minX, y: rect.maxY - radius),
-      controlPoint: CGPoint(x: rect.minX, y: rect.maxY)
-    )
   }
 }

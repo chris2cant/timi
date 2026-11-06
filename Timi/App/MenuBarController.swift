@@ -81,9 +81,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
   /// two vertical capsules, same proportions as `EyeProjection`.
   private static func makeIcon() -> NSImage {
     let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
-      let scale: CGFloat = 18 / 72 * 1.5
-      let eyeWidth = EyeProjection.eyeWidth * 72 * scale
-      let eyeHeight = EyeProjection.eyeHeight * 72 * scale
+      let scale: CGFloat = 18 / MascotView.eyeScale * 1.5
+      let eyeWidth = EyeProjection.eyeWidth * MascotView.eyeScale * scale
+      let eyeHeight = EyeProjection.eyeHeight * MascotView.eyeScale * scale
       let centerOffset = sin(EyeProjection.eyeSeparation * .pi / 180) * 52 * scale
       NSColor.black.setFill()
       for sign in [CGFloat(-1), CGFloat(1)] {

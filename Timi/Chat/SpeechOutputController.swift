@@ -9,6 +9,13 @@ struct SpeechVoiceOption: Identifiable, Hashable {
 
   var id: String { identifier }
 
+  init(_ voice: AVSpeechSynthesisVoice) {
+    identifier = voice.identifier
+    name = voice.name
+    language = voice.language
+    quality = voice.quality
+  }
+
   var localizedLanguage: String {
     Locale.current.localizedString(forIdentifier: language) ?? language
   }
@@ -28,21 +35,17 @@ struct SpeechVoiceOption: Identifiable, Hashable {
 }
 
 @MainActor
-final class SpeechOutputController: NSObject, @preconcurrency AVSpeechSynthesizerDelegate {
-  var isSpeakingDidChange: ((Bool) -> Void)?
-
-  private lazy var synthesizer: AVSpeechSynthesizer = {
-    let synthesizer = AVSpeechSynthesizer()
-    synthesizer.delegate = self
-    return synthesizer
-  }()
-  private var activeUtterance: AVSpeechUtterance?
+final class SpeechOutputController {
+  // Created on first use: SwiftUI may build throwaway instances for `@State`.
+  private var synthesizer: AVSpeechSynthesizer?
 
   func speak(_ text: String, preferredVoiceIdentifier: String? = nil) {
     let content = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !content.isEmpty else { return }
 
-    stop()
+    let synthesizer = synthesizer ?? AVSpeechSynthesizer()
+    self.synthesizer = synthesizer
+    synthesizer.stopSpeaking(at: .immediate)
 
     let utterance = AVSpeechUtterance(string: content)
     utterance.voice = Self.voice(
@@ -50,46 +53,16 @@ final class SpeechOutputController: NSObject, @preconcurrency AVSpeechSynthesize
       preferredVoiceIdentifier: preferredVoiceIdentifier
     )
     utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-    activeUtterance = utterance
-    isSpeakingDidChange?(true)
     synthesizer.speak(utterance)
   }
 
   func stop() {
-    guard activeUtterance != nil || synthesizer.isSpeaking || synthesizer.isPaused else { return }
-    activeUtterance = nil
-    synthesizer.stopSpeaking(at: .immediate)
-    isSpeakingDidChange?(false)
-  }
-
-  func speechSynthesizer(
-    _ synthesizer: AVSpeechSynthesizer,
-    didFinish utterance: AVSpeechUtterance
-  ) {
-    guard utterance === activeUtterance else { return }
-    activeUtterance = nil
-    isSpeakingDidChange?(false)
-  }
-
-  func speechSynthesizer(
-    _ synthesizer: AVSpeechSynthesizer,
-    didCancel utterance: AVSpeechUtterance
-  ) {
-    guard utterance === activeUtterance else { return }
-    activeUtterance = nil
-    isSpeakingDidChange?(false)
+    synthesizer?.stopSpeaking(at: .immediate)
   }
 
   static func availableVoices(for languageCode: String) -> [SpeechVoiceOption] {
     eligibleVoices(for: languageCode)
-      .map {
-        SpeechVoiceOption(
-          identifier: $0.identifier,
-          name: $0.name,
-          language: $0.language,
-          quality: $0.quality
-        )
-      }
+      .map(SpeechVoiceOption.init)
       .sorted { lhs, rhs in
         let qualityComparison = qualityRank(lhs.quality) - qualityRank(rhs.quality)
         if qualityComparison != 0 {
@@ -100,13 +73,7 @@ final class SpeechOutputController: NSObject, @preconcurrency AVSpeechSynthesize
   }
 
   static func automaticVoice(for text: String) -> SpeechVoiceOption? {
-    guard let voice = bestAvailableVoice(for: text) else { return nil }
-    return SpeechVoiceOption(
-      identifier: voice.identifier,
-      name: voice.name,
-      language: voice.language,
-      quality: voice.quality
-    )
+    bestAvailableVoice(for: detectedLanguageCode(for: text)).map(SpeechVoiceOption.init)
   }
 
   private static func voice(
@@ -119,11 +86,10 @@ final class SpeechOutputController: NSObject, @preconcurrency AVSpeechSynthesize
        Locale.Language(identifier: preferredVoice.language).languageCode?.identifier == languageCode {
       return preferredVoice
     }
-    return bestAvailableVoice(for: text)
+    return bestAvailableVoice(for: languageCode)
   }
 
-  private static func bestAvailableVoice(for text: String) -> AVSpeechSynthesisVoice? {
-    let languageCode = detectedLanguageCode(for: text)
+  private static func bestAvailableVoice(for languageCode: String?) -> AVSpeechSynthesisVoice? {
     guard let languageCode else { return nil }
 
     let regionalLanguage = Locale.preferredLanguages.first {
@@ -133,11 +99,10 @@ final class SpeechOutputController: NSObject, @preconcurrency AVSpeechSynthesize
 
     let voices = eligibleVoices(for: languageCode)
 
-    let regionalVoices = voices.filter { voice in
-      guard let regionalLanguage else { return false }
-      return Locale(identifier: voice.language).language.region
-        == Locale(identifier: regionalLanguage).language.region
-    }
+    let regionalVoices: [AVSpeechSynthesisVoice] = regionalLanguage.map { regionalLanguage in
+      let region = Locale(identifier: regionalLanguage).language.region
+      return voices.filter { Locale(identifier: $0.language).language.region == region }
+    } ?? []
 
     let candidates = regionalVoices.isEmpty ? voices : regionalVoices
     guard let highestQuality = candidates.map({ qualityRank($0.quality) }).max() else {

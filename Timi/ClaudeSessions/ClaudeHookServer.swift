@@ -2,7 +2,7 @@ import Foundation
 import Network
 import os
 
-/// Listens on a Unix domain socket for Claude Code hook requests.
+/// Listens on a Unix domain socket for Claude Code hook and status line requests.
 final class ClaudeHookServer: @unchecked Sendable {
   static var defaultSocketURL: URL {
     let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -13,6 +13,7 @@ final class ClaudeHookServer: @unchecked Sendable {
   let socketURL: URL
 
   private let onRequest: @MainActor (ClaudeHookRequest) -> Void
+  private let onUsage: @MainActor (ClaudeUsageLimits) -> Void
   private let queue = DispatchQueue(label: "io.github.chris2cant.Timi.ClaudeHookServer")
   private let logger = Logger(subsystem: "io.github.chris2cant.Timi", category: "ClaudeHooks")
   // Only touched from start() and stop(), which are called from the main actor.
@@ -20,10 +21,12 @@ final class ClaudeHookServer: @unchecked Sendable {
 
   init(
     socketURL: URL = ClaudeHookServer.defaultSocketURL,
-    onRequest: @escaping @MainActor (ClaudeHookRequest) -> Void
+    onRequest: @escaping @MainActor (ClaudeHookRequest) -> Void,
+    onUsage: @escaping @MainActor (ClaudeUsageLimits) -> Void = { _ in }
   ) {
     self.socketURL = socketURL
     self.onRequest = onRequest
+    self.onUsage = onUsage
   }
 
   func start() throws {
@@ -41,12 +44,14 @@ final class ClaudeHookServer: @unchecked Sendable {
       self?.accept(connection)
     }
     let ready = DispatchSemaphore(value: 0)
+    let failure = OSAllocatedUnfairLock<NWError?>(initialState: nil)
     listener.stateUpdateHandler = { [logger] state in
       switch state {
       case .ready:
         ready.signal()
       case .failed(let error):
         logger.error("Hook listener failed: \(error.localizedDescription, privacy: .public)")
+        failure.withLock { $0 = error }
         ready.signal()
       default:
         break
@@ -55,6 +60,12 @@ final class ClaudeHookServer: @unchecked Sendable {
     listener.start(queue: queue)
     // Binding is near-instant; waiting avoids refused connections from a hook fired right after launch.
     _ = ready.wait(timeout: .now() + 1)
+    if let error = failure.withLock({ $0 }) {
+      listener.cancel()
+      throw error
+    }
+    // Owner only: requests carry the CLI paths Timi runs when a session mascot is clicked.
+    try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: socketURL.path)
     self.listener = listener
   }
 
@@ -66,7 +77,7 @@ final class ClaudeHookServer: @unchecked Sendable {
 
   private func accept(_ connection: NWConnection) {
     let handler = ConnectionHandler(
-      connection: connection, queue: queue, logger: logger, onRequest: onRequest)
+      connection: connection, queue: queue, logger: logger, onRequest: onRequest, onUsage: onUsage)
     handler.start()
   }
 }
@@ -74,13 +85,14 @@ final class ClaudeHookServer: @unchecked Sendable {
 /// Reads one request from a connection, answers it and closes. Confined to the server queue.
 private final class ConnectionHandler: @unchecked Sendable {
   private static let timeout: DispatchTimeInterval = .seconds(2)
-  private static let noContent = "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-  private static let badRequest = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+  private static let noContent = Data("HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8)
+  private static let badRequest = Data("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8)
 
   private let connection: NWConnection
   private let queue: DispatchQueue
   private let logger: Logger
   private let onRequest: @MainActor (ClaudeHookRequest) -> Void
+  private let onUsage: @MainActor (ClaudeUsageLimits) -> Void
   private var buffer = Data()
   private var finished = false
 
@@ -88,12 +100,14 @@ private final class ConnectionHandler: @unchecked Sendable {
     connection: NWConnection,
     queue: DispatchQueue,
     logger: Logger,
-    onRequest: @escaping @MainActor (ClaudeHookRequest) -> Void
+    onRequest: @escaping @MainActor (ClaudeHookRequest) -> Void,
+    onUsage: @escaping @MainActor (ClaudeUsageLimits) -> Void
   ) {
     self.connection = connection
     self.queue = queue
     self.logger = logger
     self.onRequest = onRequest
+    self.onUsage = onUsage
   }
 
   func start() {
@@ -122,6 +136,11 @@ private final class ConnectionHandler: @unchecked Sendable {
         // The main queue is FIFO, unlike unstructured tasks: event order drives the state machine.
         let onRequest = onRequest
         DispatchQueue.main.async { MainActor.assumeIsolated { onRequest(request) } }
+      case .statusLine(let limits):
+        reply(Self.noContent)
+        guard let limits else { return }
+        let onUsage = onUsage
+        DispatchQueue.main.async { MainActor.assumeIsolated { onUsage(limits) } }
       case .invalid:
         logger.error("Rejected invalid hook request (\(self.buffer.count) bytes)")
         reply(Self.badRequest)
@@ -136,10 +155,10 @@ private final class ConnectionHandler: @unchecked Sendable {
     }
   }
 
-  private func reply(_ response: String) {
+  private func reply(_ response: Data) {
     finished = true
     connection.send(
-      content: Data(response.utf8),
+      content: response,
       completion: .contentProcessed { [connection] _ in connection.cancel() })
   }
 }

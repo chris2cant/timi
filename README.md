@@ -1,12 +1,12 @@
 # Timi
 
-Timi is a deliberately small, native macOS desktop mascot. It displays an animated transparent floating panel, supports eight screen anchors, can be dragged and snapped to any screen edge, remembers its placement and visibility between launches, and offers an optional local Apple Intelligence conversation.
+Timi is a deliberately small, native macOS desktop mascot. It displays an animated transparent floating panel, supports eight screen anchors, can be dragged and snapped to any screen edge, remembers its placement and visibility between launches, and offers an optional local Apple Intelligence conversation. It can also show your Claude Code sessions, whether they run in a terminal or in Claude Desktop.
 
 ## Requirements
 
 - macOS 26 or later
 - Xcode 26 or later (the full app from the App Store, opened once: the Command Line Tools alone cannot build Timi). No Apple account or paid developer program is needed.
-- Optional: Apple Intelligence enabled, for the conversation bubble and dictation cleanup. Everything else, including the Claude Code sessions, works without it.
+- Optional: Apple Intelligence enabled, for the conversation bubble and dictation cleanup. Everything else, including the Claude Code and Claude Desktop sessions, works without it.
 
 There is no prebuilt download yet: Timi is built from this repository on your Mac.
 
@@ -14,11 +14,11 @@ There is no prebuilt download yet: Timi is built from this repository on your Ma
 
 ### With Claude Code (recommended)
 
-Open Claude Code anywhere and ask:
+Open Claude Code anywhere, in a terminal or in the Code tab of Claude Desktop, and ask:
 
 > Setup Timi from https://github.com/chris2cant/timi
 
-Claude follows [Setup instructions for agents](#setup-instructions-for-agents) below: it checks the requirements, builds and installs Timi, starts it and installs the Claude Code hooks. When it is done, restart your Claude Code sessions (including the one that ran the setup) so they load the hooks.
+Claude follows [Setup instructions for agents](#setup-instructions-for-agents) below: it checks the requirements, builds and installs Timi, starts it and installs the Claude Code hooks and wraps your status line (see below). When it is done, restart your Claude Code sessions (including the one that ran the setup) so they load the hooks; for Claude Desktop, quit and reopen the app.
 
 ### By hand
 
@@ -32,6 +32,8 @@ cd ~/Developer/timi
 
 The commands work the same in zsh, bash and fish.
 
+The app is signed with the `Timi Local Signing` certificate when your keychain has one (see [RELEASING.md](RELEASING.md), step 5), ad hoc otherwise. With ad hoc signing, macOS forgets the dictation permissions (Input Monitoring, Accessibility) at every reinstall and asks again; everything else keeps working.
+
 ### Setup instructions for agents
 
 Follow these steps in order when a user asks you to set up Timi. Use POSIX shell syntax in your own tool calls. Never run `sudo` yourself: give the command to the user and wait.
@@ -42,7 +44,7 @@ Follow these steps in order when a user asks you to set up Timi. Use POSIX shell
 4. **Verify.** All three must succeed:
    - `pgrep -x Timi`
    - `test -S "$HOME/Library/Application Support/Timi/claude-hooks.sock"`
-   - `./scripts/claude-hooks.sh status` (exit code 0 means the 11 hook events are installed)
+   - `./scripts/claude-hooks.sh status` (exit code 0 means the 11 hook events and the status line wrapper are installed)
 
    Then check the whole chain with a fake session; a small Timi named after the current folder appears, then disappears:
 
@@ -53,12 +55,14 @@ Follow these steps in order when a user asks you to set up Timi. Use POSIX shell
    curl -s -m 1 --unix-socket "$sock" --data-binary '{"hook_event_name":"SessionEnd","session_id":"timi-setup-check"}' http://timi/claude-hook
    ```
 5. **Tell the user**, briefly:
-   - Restart running Claude Code sessions, this one included: hooks are read when a session starts.
-   - What a click on a small Timi does in the terminal they use (see [Terminals](#terminals)). Detect it from your own session's environment instead of asking: `CMUX_WORKSPACE_ID` set means cmux, `HERDR_PANE_ID` set means herdr (both can be set: herdr inside cmux), `TMUX` set means tmux, otherwise `TERM_PROGRAM` names the app (`Apple_Terminal`, `iTerm.app`, `ghostty`, `vscode`, `WarpTerminal`…). Ask only if the user says they use several terminals.
+   - Restart running Claude Code sessions, this one included: hooks are read when a session starts. Claude Desktop must be quit and reopened.
+   - What a click on a small Timi does in the terminal or app they use (see [Terminals and Claude Desktop](#terminals-and-claude-desktop)). Detect it from your own session's environment instead of asking: `CLAUDE_CODE_ENTRYPOINT=claude-desktop` means Claude Desktop, otherwise `CMUX_WORKSPACE_ID` set means cmux, `HERDR_PANE_ID` set means herdr (both can be set: herdr inside cmux), `TMUX` set means tmux, otherwise `TERM_PROGRAM` names the app (`Apple_Terminal`, `iTerm.app`, `ghostty`, `vscode`, `WarpTerminal`…). Ask only if the user says they use several terminals.
    - Microphone, Input Monitoring and Accessibility are only for dictation and are asked when first needed (or from **Timi > Settings…**). Conversation needs Apple Intelligence.
    - Updating is `git pull` then `./scripts/install.sh` in the checkout; removal is described in [Uninstall](#uninstall).
 
-The hooks are written to `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`). The script keeps every other hook, never duplicates the Timi entry, refuses invalid JSON and writes `settings.json.bak-timi` first. Hooks exit immediately when Timi is not running, so Claude Code is never blocked.
+The hooks are written to `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`). The script keeps every other hook, never duplicates the Timi entry, refuses invalid JSON and writes `settings.json.bak-timi` first. Claude Desktop runs Claude Code with the same settings file, so these hooks cover its sessions too: nothing else to install. Hooks exit immediately when Timi is not running, so Claude Code is never blocked.
+
+The same script also wraps the Claude Code status line (`statusLine` in the same settings file), the only place Claude Code reports usage limits. The wrapper forwards the status line input to Timi, then runs your original command with the same input: its output stays byte for byte identical. The original command is saved and `claude-hooks.sh uninstall` restores it. A later `/statusline` replaces the wrapper: run `./scripts/claude-hooks.sh install` again.
 
 ### Uninstall
 
@@ -71,16 +75,16 @@ rm -rf ~/Library/Application\ Support/Timi
 defaults delete io.github.chris2cant.Timi
 ```
 
-## Terminals
+## Terminals and Claude Desktop
 
-The hooks are the same for every terminal. Only the click on a small Timi differs:
+The hooks are the same for every terminal and for Claude Desktop. Only the click on a small Timi differs:
 
 | Claude Code runs in | Click on its small Timi |
 |---|---|
 | cmux | Selects its cmux workspace and brings cmux forward |
 | herdr | Focuses its herdr pane, then brings the hosting terminal forward |
 | Terminal, iTerm2, Ghostty, Warp, VS Code, Cursor, … | Brings that app forward (not the exact window or tab) |
-| Claude Desktop | Opens the conversation in Claude Desktop |
+| Claude Desktop (Code tab) | Brings Claude Desktop forward on that conversation |
 | tmux | No app is found in its process tree: brings cmux forward if it is open, otherwise nothing |
 
 States are shown the same way everywhere. Details: [docs/claude-code-sessions.md](docs/claude-code-sessions.md).
@@ -100,6 +104,8 @@ Move Timi from **Timi > Settings…** (`⌘,`) or drag it directly, including on
 
 Timi's eyes follow the pointer anywhere on screen (read with `NSEvent.mouseLocation`, so no extra permission) and rest when Reduce Motion is on.
 
+Every Timi has expressive eyes: moods (focused, pleading, sleepy…) and short gestures (blink, wink, giggle, yawn…) that follow what it does. The **Expressions** tab in Settings plays each of them on both mascot sizes.
+
 Click Timi to open the conversation bubble. Responses come from Apple's on-device Foundation Model and are streamed into the bubble; no account, API key, or network service is added by Timi (the Claude Code integration below only uses a local Unix socket). Press Escape or click elsewhere to close the bubble. On unsupported systems, the bubble explains why conversation is unavailable while the rest of Timi continues to work.
 
 The microphone button uses Apple's on-device `SpeechTranscriber` for live dictation and falls back to the system dictation model when the newer model does not support the current locale. Click once to start, speak, then click the stop button to finalize the text before sending it. Timi requests microphone access only when dictation is first used and stops recording when the conversation bubble closes.
@@ -114,7 +120,7 @@ The app intentionally keeps a normal Dock icon in V0 so Settings and Quit remain
 
 ## Claude Code sessions
 
-Timi can show one small Timi per running Claude Code session, lined up next to the main mascot. Each one shows whether its session is working, needs you (urgent) or has finished its turn (gentle), and a click focuses its terminal ([Terminals](#terminals)). Events come from Claude Code hooks through a local Unix socket: no network port. States and limits: [docs/claude-code-sessions.md](docs/claude-code-sessions.md).
+Timi can show one small Timi per running Claude Code session, lined up next to the main mascot, whether the session runs in a terminal or in Claude Desktop. Each one shows whether its session is working, needs you (urgent) or has finished its turn (gentle), and a click focuses its terminal or its Claude Desktop conversation ([Terminals and Claude Desktop](#terminals-and-claude-desktop)). Right-click (or Control-click) a small Timi to tint its body with one of nine subtle tinted blacks; the color is remembered per project. On Pro and Max accounts, one more small black Timi closes the row with a dial split in two (top half: 5-hour window, bottom half: week), the time left before the 5-hour reset below it and the details in its tooltip, read from the status line. Events come from Claude Code hooks through a local Unix socket: no network port. States and limits: [docs/claude-code-sessions.md](docs/claude-code-sessions.md).
 
 ## Tests
 
@@ -123,17 +129,19 @@ Run the `TimiTests` test target in Xcode (`⌘U`), or `xcodebuild -project Timi.
 ## Code map
 
 - Mascot appearance: `Timi/Mascot/MascotView.swift`
+- Expressive eyes (moods, gestures, projection): `Timi/Mascot/AnimatedEyes.swift`, `Timi/Mascot/EyeExpression.swift`, `Timi/Mascot/EyeCatalog.swift`, `Timi/Mascot/EyeProjection.swift`, and the Settings gallery `Timi/Settings/ExpressionGalleryView.swift`
 - Pure anchor geometry: `Timi/Mascot/PositionCalculator.swift`
 - Floating AppKit panel: `Timi/Mascot/MascotWindowController.swift`
 - Claude Code sessions (hook socket, state machine, store, herdr/cmux focus): `Timi/ClaudeSessions/`
 - Session mascots (pure layout, view, `NSPanel`s): `Timi/Mascot/SessionMascotLayout.swift`, `Timi/Mascot/SessionMascotView.swift`, `Timi/Mascot/SessionMascotsWindowController.swift`
+- Usage limits (status line decoding, store, gauge): `Timi/ClaudeSessions/ClaudeUsageLimits.swift`, `Timi/ClaudeSessions/ClaudeUsageStore.swift`, `Timi/Mascot/UsageGaugeView.swift`
 - Conversation state and Apple Intelligence integration: `Timi/Chat/ChatState.swift`
 - On-device speech transcription and microphone capture: `Timi/Chat/SpeechInputController.swift`
 - Global dictation coordination, shortcut, insertion, and local catalog: `Timi/Dictation/`
 - Native speech synthesis and voice selection: `Timi/Chat/SpeechOutputController.swift`
 - Conversation UI and AppKit panel: `Timi/Chat/ChatView.swift`, `Timi/Chat/ChatWindowController.swift`
 - Pure conversation-bubble geometry: `Timi/Chat/ChatPositionCalculator.swift`
-- Persistent state: `Timi/App/AppState.swift`
+- Persistent state, including the per-project mascot colors: `Timi/App/AppState.swift`
 - Native Settings UI: `Timi/Settings/SettingsView.swift`
 - Install and Claude Code hook scripts: `scripts/install.sh`, `scripts/claude-hooks.sh`
 - Native decisions and Apple references: `docs/architecture.md`

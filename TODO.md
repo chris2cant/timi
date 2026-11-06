@@ -1,9 +1,16 @@
 # Timi — suivi du projet
 
-Dernière mise à jour : 2026-11-03
+Dernière mise à jour : 2026-11-05
 
 ## Terminé
 
+- [x] Couleur des petits Timi par projet : clic droit ou ⌃-clic → palette de 9 noirs teintés, mémorisée par nom de projet.
+
+- [x] Revue de code globale (2026-11-05) : clic sans saut au bord, timer d’auto-hide et yeux du grand Timi en pause quand il est masqué, socket des hooks en 0600 et échec d’écoute remonté, dictée qui ne reste plus bloquée en « Je transcris… » ni micro ouvert, Timi silencieux après fermeture de la bulle, respiration des petits Timi sans recréer la vue, contours des yeux mis en cache, `settings.json` en lien symbolique préservé par `claude-hooks.sh`.
+
+- [x] Yeux expressifs pour tous les Timi (`AnimatedEyes`) : paupières découpées et arrondies, 9 humeurs, 12 gestes, ressort entre humeurs, lueur douce ; lecture par saccades pendant « Travaille » ; réactions aux événements d'outil, de prompt et de sous-agent ; gestes au repos ; survol, clic et triple clic sur le grand Timi ; onglet Réglages « Expressions » pour les régler.
+
+- [x] Jauges des limites 5 h et semaine au bout de la rangée des petits Timi : cadran en deux demi-cercles sans chiffres (haut : 5 h, bas : semaine) autour des yeux de Timi, compte à rebours, halo rouge dès 90 % ; données lues par la statusline enveloppée par `claude-hooks.sh install` (sortie d’origine préservée, restaurée par `uninstall`).
 - [x] Un petit Timi par session Claude Code (hooks → socket Unix), états travaille / a besoin de toi / à toi / en attente, clic → pane herdr et/ou workspace cmux.
 - [x] Clic sur un petit Timi de Claude Desktop → ouvre sa conversation dans Claude Desktop ; les sessions « En attente » ou « A fini » silencieuses depuis plus de 5 h sont masquées même si leur process vit encore.
 - [x] Les petits Timi « En attente » rétrécissent à 50 %, collés à leur bord, pour se lire endormis d’un coup d’œil.
@@ -88,6 +95,20 @@ Dernière mise à jour : 2026-11-03
 
 ## À valider manuellement
 
+- [ ] Clic droit et ⌃-clic sur un petit Timi : le menu de couleurs s’ouvre sans voler le focus, le clic gauche focus toujours la session, la couleur change aussitôt et survit au redémarrage.
+- [ ] Revue de code : un clic sur Timi près d’un bord ouvre la bulle sans le déplacer ; un drag démarre bien au-delà de 3 pt.
+- [ ] Revue de code : la bulle de chat ouverte reste devant les petits Timi pendant un drag du grand Timi.
+- [ ] Revue de code : changement de statut d’un petit Timi → l’humeur des yeux passe en douceur (ressort), sans fondu de toute la mascotte ; la respiration change de rythme sans à-coup.
+- [ ] Revue de code : relâcher très vite le raccourci de dictée globale, puis relancer une dictée → elle démarre normalement.
+- [ ] Revue de code : fermer la bulle pendant qu’une réponse se génère → Timi ne la lit pas à voix haute.
+- [ ] Revue de code : auto-hide complet puis survol du bord → les yeux et la respiration repartent aussitôt.
+
+- [ ] Expressions : dans Réglages › Expressions, juger chaque humeur et chaque geste à taille réelle sur les deux tailles, en particulier Joyeux, Serein, la grimace et le vertige ; ajuster les valeurs de `EyeCatalog.swift` si besoin.
+- [ ] Grand Timi : survol → « ah ! » et yeux sereins ; clic → petit rire ; trois clics rapides → vertige ; gestes au repos ni trop fréquents ni trop rares (9 à 20 s).
+- [ ] Session « Travaille » : la lecture par saccades est naturelle ; un échec d'outil donne une grimace ; les clins d'œil restent rares pendant une longue rafale d'outils.
+- [ ] Sessions : sursaut à l'entrée de « A besoin de toi », petit rire à « A fini », bâillement occasionnel en « En attente » sans consommation CPU entre deux bâillements.
+- [ ] Réduire les animations : humeurs appliquées sans transition, aucun geste ni clignement automatique.
+
 - [ ] Valider l’auto-hide : mode complet et 4 pt, deux écrans, chat ouvert, dictée globale, drag, plein écran.
 - [ ] Valider l’icône de barre des menus en thème clair et sombre, et la nouvelle icône d’app à 16 pt.
 - [ ] Autoriser Microphone, Reconnaissance vocale, Accessibilité et Surveillance de l’entrée sur une installation neuve.
@@ -146,6 +167,10 @@ Dernière mise à jour : 2026-11-03
 - [ ] Session Claude Code dans Terminal, iTerm2, Ghostty et VS Code : clic sur son petit Timi → l’app passe au premier plan.
 - [ ] Session herdr lancée dans Terminal (hors cmux) : clic → pane herdr sélectionné et Terminal au premier plan.
 - [ ] Session « En attente » ou « A fini » silencieuse depuis plus de 5 h → son petit Timi disparaît, puis revient à son prochain événement ; au lancement de Timi, ces sessions n’apparaissent pas.
+
+- [ ] Jauges de limites : après `claude-hooks.sh install`, ta statusline s’affiche à l’identique (y compris le relais The Office) et la jauge apparaît au bout de la rangée dès la première réponse d’une session ; valeurs identiques à `/usage`.
+- [ ] Jauges de limites : rendu sur les quatre bords et flottant (raccords, libellé côté intérieur), infobulle détaillée au survol (pourcentages et heures de réinitialisation), marge autour du cadran, remplissage animé à l’apparition, passage orange à 75 % et rouge + halo à 90 %, retour à 0 après `resets_at`.
+- [ ] Jauges de limites : `claude-hooks.sh uninstall` restaure exactement l’ancienne `statusLine` ; sans statusline préalable, la ligne reste vide.
 
 ## Prochaines étapes proposées
 

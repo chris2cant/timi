@@ -11,6 +11,7 @@ final class ClaudeSessionStore: ObservableObject {
   private var livenessTimer: Timer?
   /// Kept apart from `sessions` so that a plain heartbeat does not republish.
   private var lastActivity: [String: Date] = [:]
+  private var reactionSerial = 0
 
   private static let livenessInterval: TimeInterval = 10
   private static let silenceTimeout: TimeInterval = 5 * 60 * 60
@@ -26,21 +27,27 @@ final class ClaudeSessionStore: ObservableObject {
   func handle(_ request: ClaudeHookRequest) {
     let event = request.event
     let index = sessions.firstIndex { $0.id == event.sessionID }
-    guard let status = ClaudeSession.nextStatus(from: index.map { sessions[$0].status }, on: event)
-    else {
+    let current = index.map { sessions[$0].status }
+    guard let status = ClaudeSession.nextStatus(from: current, on: event) else {
       if let index { sessions.remove(at: index) }
       lastActivity[event.sessionID] = nil
       return
     }
 
     lastActivity[event.sessionID] = now()
+    var reaction: ClaudeSessionReaction?
+    if let kind = ClaudeSession.reactionKind(for: event, from: current) {
+      reactionSerial += 1
+      reaction = ClaudeSessionReaction(kind: kind, serial: reactionSerial)
+    }
     guard let index else {
       sessions.append(
         ClaudeSession(
           id: event.sessionID,
           projectName: ClaudeSession.projectName(forWorkingDirectory: event.cwd),
           status: status,
-          context: request.context
+          context: request.context,
+          reaction: reaction
         ))
       return
     }
@@ -48,6 +55,7 @@ final class ClaudeSessionStore: ObservableObject {
     var session = sessions[index]
     session.status = status
     session.context = Self.merged(session.context, with: request.context)
+    if let reaction { session.reaction = reaction }
     if session != sessions[index] {
       sessions[index] = session
     }
@@ -57,9 +65,10 @@ final class ClaudeSessionStore: ObservableObject {
   /// and sessions that would be pruned right away.
   func seed(_ entries: [ClaudeSessionDiscovery.Entry]) {
     var added: [ClaudeSession] = []
+    var known = Set(sessions.map(\.id))
     let current = now()
     for entry in entries where isProcessAlive(entry.pid) {
-      guard !(sessions + added).contains(where: { $0.id == entry.sessionId }) else { continue }
+      guard !known.contains(entry.sessionId) else { continue }
       let session = ClaudeSession(
         id: entry.sessionId,
         projectName: ClaudeSession.projectName(forWorkingDirectory: entry.cwd),
@@ -69,6 +78,7 @@ final class ClaudeSessionStore: ObservableObject {
       let activity = ClaudeSessionDiscovery.lastActivity(of: entry) ?? current
       guard !Self.isAsleep(session, lastActivity: activity, at: current) else { continue }
       lastActivity[entry.sessionId] = activity
+      known.insert(entry.sessionId)
       added.append(session)
     }
     if !added.isEmpty {
@@ -83,6 +93,8 @@ final class ClaudeSessionStore: ObservableObject {
       [weak self] _ in
       MainActor.assumeIsolated { self?.pruneSessions() }
     }
+    // Pruning is not time-critical: let macOS coalesce the wake-ups.
+    livenessTimer?.tolerance = Self.livenessInterval / 2
   }
 
   func stopLivenessChecks() {

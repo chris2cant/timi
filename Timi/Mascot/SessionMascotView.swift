@@ -4,15 +4,28 @@ struct SessionMascotView: View {
   nonisolated static let silhouetteSize = CGSize(width: 60, height: 42)
   /// A sleeping (idle) session shrinks so it reads as asleep at a glance.
   nonisolated private static let sleepingScale: CGFloat = 0.5
-  nonisolated private static let cornerRadius: CGFloat = 10
+  nonisolated static let cornerRadius: CGFloat = 10
+  static let eyeScale: CGFloat = 30
+  static let glowRadius: CGFloat = 2
   /// Room around the silhouette for the joins drawn toward an attached screen edge.
-  nonisolated private static let joinMargin: CGFloat = 10
-  nonisolated private static let labelSize = CGSize(width: 70, height: 16)
+  nonisolated static let joinMargin: CGFloat = 10
+  nonisolated static let labelSize = CGSize(width: 70, height: 16)
   // Room between silhouette and label for the hop and the "!" bubble.
   nonisolated private static let labelGap: CGFloat = 19
 
   /// Size of the panel hosting one session mascot, label included.
   nonisolated static let windowSize = CGSize(width: 84, height: 80)
+
+  /// Frame of the silhouette shape: the body plus the join margin on every side.
+  nonisolated static let silhouetteFrameSize = CGSize(
+    width: silhouetteSize.width + joinMargin * 2,
+    height: silhouetteSize.height + joinMargin * 2
+  )
+
+  /// Body of a session-sized mascot, joined to `edges`, drawn in `silhouetteFrameSize`.
+  static func silhouette(for edges: MascotAttachmentEdges) -> MascotSilhouette {
+    MascotSilhouette(attachmentEdges: edges, cornerRadius: cornerRadius, margin: joinMargin)
+  }
 
   /// Silhouette and label frames in window coordinates (origin bottom-left, y up).
   /// The silhouette touches the window side facing the attached screen edge, and the
@@ -29,7 +42,8 @@ struct SessionMascotView: View {
     let centeredX = (width - body.width) / 2
     let centeredLabelX = (width - label.width) / 2
 
-    switch Dock(edges) {
+    let dock = SessionMascotDock(edges)
+    switch dock {
     case .floating:
       let bodyY = height - 16 - body.height
       return (
@@ -48,7 +62,7 @@ struct SessionMascotView: View {
         CGRect(origin: CGPoint(x: centeredLabelX, y: bodyY - labelGap - label.height), size: label)
       )
     case .left, .right:
-      let isLeft = Dock(edges) == .left
+      let isLeft = dock == .left
       let bodyY = height - 14 - body.height
       // The label clears the join drawn along the wall.
       let labelX = isLeft ? joinMargin + 2 : width - joinMargin - 2 - label.width
@@ -62,16 +76,19 @@ struct SessionMascotView: View {
   let session: ClaudeSession
   /// Screen edge the mascot sticks to; empty when it floats.
   let edges: MascotAttachmentEdges
+  /// Body color chosen for the project.
+  let color: MascotColor
   /// Pointer offset from the mascot center (screen space, y up), for eye tracking.
   let pointerOffset: () -> CGVector
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  @State private var eyesAreOpen = true
+  @State private var gestureTrigger: GestureTrigger?
+  @State private var lastReactionDate = Date.distantPast
   @State private var hopCount = 0
   @State private var wiggleCount = 0
 
-  private var dock: Dock { Dock(edges) }
+  private var dock: SessionMascotDock { SessionMascotDock(edges) }
   var isAsleep: Bool { session.status == .idle }
 
   var body: some View {
@@ -82,18 +99,21 @@ struct SessionMascotView: View {
       // frame since the join margin is symmetric.
       mascot
         .scaleEffect(isAsleep ? Self.sleepingScale : 1)
-        .position(x: frames.body.midX, y: Self.windowSize.height - frames.body.midY)
+        .position(inSessionWindow: frames.body)
       label
         .frame(width: frames.label.width, height: frames.label.height, alignment: dock.labelAlignment)
-        .position(x: frames.label.midX, y: Self.windowSize.height - frames.label.midY)
+        .position(inSessionWindow: frames.label)
     }
     .animation(reduceMotion ? nil : .spring(duration: 0.45), value: isAsleep)
     .frame(width: Self.windowSize.width, height: Self.windowSize.height)
     .help(helpText)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(helpText)
-    .task(id: session.status) {
-      await blinkPeriodically()
+    .onChange(of: session.status) { _, status in
+      greet(status)
+    }
+    .onChange(of: session.reaction) { _, reaction in
+      if let reaction { react(to: reaction.kind) }
     }
     .task(id: MotionKey(status: session.status, reduceMotion: reduceMotion)) {
       await animateStatus()
@@ -101,11 +121,7 @@ struct SessionMascotView: View {
   }
 
   private var mascot: some View {
-    let shape = MascotSilhouette(
-      attachmentEdges: edges,
-      cornerRadius: Self.cornerRadius,
-      margin: Self.joinMargin
-    )
+    let shape = Self.silhouette(for: edges)
     let size = Self.silhouetteSize
     // Captured by value: the keyframe closures are Sendable.
     let dock = dock
@@ -113,7 +129,7 @@ struct SessionMascotView: View {
 
     return ZStack {
       shape
-        .fill(.black)
+        .fill(color.swiftUIColor)
         .shadow(color: haloColor, radius: haloColor == .clear ? 0 : 4)
       eyes
         .frame(width: size.width, height: size.height)
@@ -129,10 +145,15 @@ struct SessionMascotView: View {
     .overlay(alignment: dock.badgeAlignment) {
       badge.padding(Self.joinMargin)
     }
-    .frame(width: size.width + Self.joinMargin * 2, height: size.height + Self.joinMargin * 2)
-    .modifier(Breathing(period: breathingPeriod, anchor: anchor))
-    // A new identity restarts the repeating animation at the new pace.
-    .id(breathingPeriod)
+    .frame(width: Self.silhouetteFrameSize.width, height: Self.silhouetteFrameSize.height)
+    .modifier(
+      Breathing(
+        period: breathingPeriod,
+        inhale: CGSize(width: 1.012, height: 1.024),
+        exhale: CGSize(width: 0.994, height: 0.988),
+        anchor: anchor
+      )
+    )
     .keyframeAnimator(initialValue: HopPose(), trigger: hopCount) { content, pose in
       // The mascot hops away from its screen edge, squashing against it.
       content
@@ -171,37 +192,77 @@ struct SessionMascotView: View {
   }
 
   private var eyes: some View {
-    // Idle eyes are still: no timeline ticking. Reduce Motion freezes the gaze too.
-    TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || session.status == .idle)) { timeline in
-      let gaze = gaze(at: timeline.date.timeIntervalSinceReferenceDate)
-      let eyes = EyeProjection.eyes(for: gaze, radius: Self.silhouetteSize.height / 2)
-      let eyeScale: CGFloat = session.status == .needsYou ? 34 : 30
-      let lidScale = lidScale
+    let status = session.status
 
-      Canvas { context, size in
-        let width = EyeProjection.eyeWidth * eyeScale
-        let height = EyeProjection.eyeHeight * eyeScale
-        let center = CGPoint(x: size.width / 2, y: size.height / 2 + 1)
-        let capsule = Path(
-          roundedRect: CGRect(x: -width / 2, y: -height / 2, width: width, height: height),
-          cornerRadius: width / 2
-        )
+    return AnimatedEyes(
+      mood: Self.mood(for: status),
+      gaze: gaze(at:),
+      trigger: gestureTrigger,
+      eyeScale: status == .needsYou ? 34 : Self.eyeScale,
+      autoBlink: status != .idle,
+      ambientGestures: Self.ambientGestures(for: status),
+      ambientInterval: Self.ambientInterval(for: status),
+      // Asleep eyes are still between yawns: no timeline ticking.
+      restsWhenStill: status == .idle,
+      glowRadius: Self.glowRadius
+    )
+  }
 
-        for eye in eyes where eye.depth > 0.02 {
-          let transform = CGAffineTransform(
-            a: eye.a,
-            b: eye.b * lidScale,
-            c: eye.c,
-            d: eye.d * lidScale,
-            tx: center.x + eye.x,
-            ty: center.y + eye.y
-          )
-          let opacity = min(1, eye.depth / 0.12) * 0.96
-          context.fill(capsule.applying(transform), with: .color(.white.opacity(opacity)))
-        }
-      }
+  private static func mood(for status: ClaudeSessionStatus) -> EyeMood {
+    switch status {
+    case .working: .focused
+    case .needsYou: .pleading
+    case .yourTurn: .content
+    case .idle: .sleepy
     }
-    .accessibilityHidden(true)
+  }
+
+  private static func ambientGestures(for status: ClaudeSessionStatus) -> [EyeGesture] {
+    switch status {
+    case .working: [.glanceUp, .glanceUp, .doubleBlink, .aha]
+    case .needsYou: [.doubleBlink]
+    case .yourTurn: [.lookAround, .doubleBlink, .wink]
+    case .idle: [.yawn]
+    }
+  }
+
+  private static func ambientInterval(for status: ClaudeSessionStatus) -> ClosedRange<TimeInterval> {
+    switch status {
+    case .working: 5...10
+    case .needsYou: 3...6
+    case .yourTurn: 8...16
+    case .idle: 25...50
+    }
+  }
+
+  /// Gesture played when the session enters `status`.
+  private func greet(_ status: ClaudeSessionStatus) {
+    switch status {
+    case .needsYou: gestureTrigger.play(.startle)
+    case .yourTurn: gestureTrigger.play(.giggle)
+    case .working, .idle: break
+    }
+  }
+
+  /// Hook events come in bursts during a turn: keep reactions occasional so they stay
+  /// readable, and let failures through more often than successes.
+  private func react(to kind: ClaudeSessionReaction.Kind) {
+    guard session.status == .working else { return }
+    let now = Date()
+    let gesture: EyeGesture?
+    switch kind {
+    case .toolFailed:
+      gesture = now.timeIntervalSince(lastReactionDate) > 1.5 ? .wince : nil
+    case .subagentStarted:
+      gesture = now.timeIntervalSince(lastReactionDate) > 3 ? .lookAround : nil
+    case .promptReceived:
+      gesture = .aha
+    case .toolSucceeded:
+      gesture = now.timeIntervalSince(lastReactionDate) > 6 && Double.random(in: 0..<1) < 0.3 ? .wink : nil
+    }
+    guard let gesture else { return }
+    lastReactionDate = now
+    gestureTrigger.play(gesture)
   }
 
   @ViewBuilder
@@ -231,16 +292,7 @@ struct SessionMascotView: View {
   private var label: some View {
     Text(session.projectName)
       .font(.system(size: 10, weight: .semibold))
-      .lineLimit(1)
-      .truncationMode(.tail)
-      .foregroundStyle(.primary)
-      .padding(.horizontal, 5)
-      .padding(.vertical, 2)
-      .background(.regularMaterial, in: Capsule())
-      .overlay {
-        Capsule().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5)
-      }
-      .frame(maxWidth: Self.labelSize.width)
+      .sessionLabelCapsule()
   }
 
   private var haloColor: Color {
@@ -249,11 +301,6 @@ struct SessionMascotView: View {
     case .working: .blue.opacity(0.7)
     case .yourTurn, .idle: .clear
     }
-  }
-
-  private var lidScale: CGFloat {
-    if !eyesAreOpen { return 0.08 }
-    return session.status == .idle ? 0.42 : 1
   }
 
   private var breathingPeriod: Double? {
@@ -280,32 +327,19 @@ struct SessionMascotView: View {
     }
   }
 
+  /// Gaze before the mood's bias (the sleepy and focused moods already look down).
   private func gaze(at time: TimeInterval) -> HeadGaze {
     switch session.status {
     case .idle:
       return Self.sleepyGaze
     case .working:
-      return reduceMotion ? Self.readingGaze(progress: 0.5) : Self.readingGaze(at: time)
+      return reduceMotion ? .zero : EyeProjection.readingGaze(at: time)
     case .needsYou, .yourTurn:
-      return reduceMotion ? Self.facingGaze : EyeProjection.gaze(towardOffset: pointerOffset())
+      return reduceMotion ? .zero : EyeProjection.gaze(towardOffset: pointerOffset())
     }
   }
 
-  private static let sleepyGaze = HeadGaze(yaw: 0, pitch: -14, roll: 0)
-  private static let facingGaze = HeadGaze(yaw: 0, pitch: 0, roll: 0)
-  private static let readingPeriod: TimeInterval = 2.2
-
-  /// Slow left-to-right sweep with a quick return, like reading lines of text.
-  private static func readingGaze(at time: TimeInterval) -> HeadGaze {
-    let progress = time.truncatingRemainder(dividingBy: readingPeriod) / readingPeriod
-    let sweep = progress < 0.82 ? progress / 0.82 : 1 - (progress - 0.82) / 0.18
-    return readingGaze(progress: sweep)
-  }
-
-  private static func readingGaze(progress: Double) -> HeadGaze {
-    let eased = progress * progress * (3 - 2 * progress)
-    return HeadGaze(yaw: CGFloat(eased) * 40 - 20, pitch: -6, roll: 0)
-  }
+  private static let sleepyGaze = HeadGaze(yaw: 0, pitch: -4, roll: 0)
 
   private func animateStatus() async {
     guard !reduceMotion else { return }
@@ -327,34 +361,10 @@ struct SessionMascotView: View {
       break
     }
   }
-
-  private func blinkPeriodically() async {
-    eyesAreOpen = true
-    guard session.status != .idle else { return }
-
-    while !Task.isCancelled {
-      do {
-        try await Task.sleep(for: .seconds(Double.random(in: 3.5...7)))
-      } catch {
-        return
-      }
-
-      eyesAreOpen = false
-
-      do {
-        try await Task.sleep(for: .milliseconds(130))
-      } catch {
-        eyesAreOpen = true
-        return
-      }
-
-      eyesAreOpen = true
-    }
-  }
 }
 
 /// The screen edge a session mascot sticks to, which orients its label, badge and hop.
-private enum Dock: Equatable {
+enum SessionMascotDock: Equatable {
   case floating, bottom, top, left, right
 
   init(_ edges: MascotAttachmentEdges) {
@@ -432,6 +442,32 @@ private enum Dock: Equatable {
   }
 }
 
+extension View {
+  /// Centers the view on `frame`, given in session window coordinates (y up).
+  func position(inSessionWindow frame: CGRect) -> some View {
+    position(x: frame.midX, y: SessionMascotView.windowSize.height - frame.midY)
+  }
+
+  /// Capsule behind the text under a session mascot or the usage gauge.
+  func sessionLabelCapsule() -> some View {
+    lineLimit(1)
+      .foregroundStyle(.primary)
+      .padding(.horizontal, 5)
+      .padding(.vertical, 2)
+      .background(.regularMaterial, in: Capsule())
+      .overlay {
+        Capsule().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5)
+      }
+      .frame(maxWidth: SessionMascotView.labelSize.width)
+  }
+}
+
+extension MascotColor {
+  var swiftUIColor: Color {
+    Color(.sRGB, red: rgb.red, green: rgb.green, blue: rgb.blue)
+  }
+}
+
 private struct MotionKey: Equatable {
   let status: ClaudeSessionStatus
   let reduceMotion: Bool
@@ -440,29 +476,6 @@ private struct MotionKey: Equatable {
 private struct HopPose {
   var lift: CGFloat = 0
   var stretch: CGFloat = 1
-}
-
-private struct Breathing: ViewModifier {
-  let period: Double?
-  let anchor: UnitPoint
-
-  @State private var isInhaling = false
-
-  func body(content: Content) -> some View {
-    content
-      .scaleEffect(
-        x: period == nil ? 1 : (isInhaling ? 1.012 : 0.994),
-        y: period == nil ? 1 : (isInhaling ? 1.024 : 0.988),
-        anchor: anchor
-      )
-      .onAppear {
-        guard let period else { return }
-
-        withAnimation(.easeInOut(duration: period).repeatForever(autoreverses: true)) {
-          isInhaling = true
-        }
-      }
-  }
 }
 
 private struct PulsingDot: View {
@@ -511,6 +524,7 @@ private struct PulsingDot: View {
           context: ClaudeHookContext()
         ),
         edges: entry.2,
+        color: MascotColor.allCases[index * 2],
         pointerOffset: { CGVector(dx: 120, dy: 60) }
       )
       .border(.secondary.opacity(0.3))

@@ -2,8 +2,34 @@ import AppKit
 import ColorSync
 import SwiftUI
 
+extension NSPanel {
+  /// Borderless, transparent panel floating over every app, Space and full-screen window,
+  /// shared by the main mascot and the session mascots.
+  static func floatingMascotPanel(size: CGSize) -> NSPanel {
+    let panel = NSPanel(
+      contentRect: CGRect(origin: .zero, size: size),
+      styleMask: [.borderless, .nonactivatingPanel],
+      backing: .buffered,
+      defer: false
+    )
+    panel.backgroundColor = .clear
+    panel.isOpaque = false
+    panel.hasShadow = false
+    panel.isReleasedWhenClosed = false
+    panel.isFloatingPanel = true
+    panel.becomesKeyOnlyIfNeeded = true
+    panel.hidesOnDeactivate = false
+    panel.level = .screenSaver
+    panel.animationBehavior = .none
+    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+    return panel
+  }
+}
+
 @MainActor
 private final class DraggableHostingView<Content: View>: NSHostingView<Content> {
+  private static var dragThreshold: CGFloat { 3 }
+
   var didBeginDragging: (() -> Void)?
   var didFinishDragging: ((CGPoint) -> Void)?
   var didClick: (() -> Void)?
@@ -12,8 +38,7 @@ private final class DraggableHostingView<Content: View>: NSHostingView<Content> 
 
   private var initialPointerLocation: CGPoint?
   private var initialWindowOrigin: CGPoint?
-  private var draggedDistance: CGFloat = 0
-  private var reportedDrag = false
+  private var isDragging = false
 
   override func hitTest(_ point: NSPoint) -> NSView? {
     guard draggableRect.contains(point) else { return nil }
@@ -28,8 +53,7 @@ private final class DraggableHostingView<Content: View>: NSHostingView<Content> 
 
     initialPointerLocation = NSEvent.mouseLocation
     initialWindowOrigin = window.frame.origin
-    draggedDistance = 0
-    reportedDrag = false
+    isDragging = false
   }
 
   override func mouseDragged(with event: NSEvent) {
@@ -44,9 +68,10 @@ private final class DraggableHostingView<Content: View>: NSHostingView<Content> 
       x: pointerLocation.x - initialPointerLocation.x,
       y: pointerLocation.y - initialPointerLocation.y
     )
-    draggedDistance = max(draggedDistance, hypot(delta.x, delta.y))
-    if draggedDistance >= 3, !reportedDrag {
-      reportedDrag = true
+    // Below the threshold the press stays a click and the mascot does not move.
+    if !isDragging {
+      guard hypot(delta.x, delta.y) >= Self.dragThreshold else { return }
+      isDragging = true
       didBeginDragging?()
     }
 
@@ -58,15 +83,16 @@ private final class DraggableHostingView<Content: View>: NSHostingView<Content> 
   }
 
   override func mouseUp(with event: NSEvent) {
-    if draggedDistance < 3 {
+    guard initialPointerLocation != nil else { return }
+    if isDragging {
+      didFinishDragging?(NSEvent.mouseLocation)
+    } else {
       didClick?()
     }
-    didFinishDragging?(NSEvent.mouseLocation)
 
     initialPointerLocation = nil
     initialWindowOrigin = nil
-    draggedDistance = 0
-    reportedDrag = false
+    isDragging = false
   }
 }
 
@@ -96,12 +122,12 @@ final class MascotWindowController: NSObject {
   private var autoHideMode = AutoHideMode.off
   private var autoHideDelay = AppState.defaultAutoHideDelay
   private var autoHideTimer: Timer?
-  private var isAutoHidden = false
   private var isDragging = false
   private var pointerLeftDate: Date?
-  private var hiddenEdge: HideEdge?
-  private var hiddenScreenFrame = CGRect.zero
-  private var shownMascotOrigin = CGPoint.zero
+  /// Set while the mascot is slid away: the edge, its screen and the mascot origin to restore.
+  private var autoHidden: (edge: HideEdge, screenFrame: CGRect, shownOrigin: CGPoint)? {
+    didSet { updateEyesPause() }
+  }
 
   var offsetDidChange: ((CGSize, String?) -> Void)?
   /// Displayed mascot frame (no transparent margin, ignoring auto-hide) and its screen.
@@ -115,12 +141,7 @@ final class MascotWindowController: NSObject {
       appState: appState,
       dictationCoordinator: dictationCoordinator
     )
-    panel = NSPanel(
-      contentRect: CGRect(origin: .zero, size: Self.windowSize),
-      styleMask: [.borderless, .nonactivatingPanel],
-      backing: .buffered,
-      defer: false
-    )
+    panel = .floatingMascotPanel(size: Self.windowSize)
     super.init()
 
     interactionState.activationHandler = { [weak self] in
@@ -165,18 +186,8 @@ final class MascotWindowController: NSObject {
       self?.dragEnded(at: pointerLocation)
     }
     panel.contentView = hostingView
-    panel.backgroundColor = .clear
-    panel.isOpaque = false
-    panel.hasShadow = false
-    panel.isMovable = true
-    panel.isReleasedWhenClosed = false
-    panel.isFloatingPanel = true
-    panel.becomesKeyOnlyIfNeeded = true
-    panel.hidesOnDeactivate = false
-    panel.level = .screenSaver
-    panel.animationBehavior = .none
-    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
+    // Selector-based observers are removed automatically when the observer is deallocated.
     NotificationCenter.default.addObserver(
       self,
       selector: #selector(screenParametersDidChange),
@@ -185,26 +196,21 @@ final class MascotWindowController: NSObject {
     )
   }
 
-  deinit {
-    NotificationCenter.default.removeObserver(self)
-  }
-
   func show(at position: MascotPosition, offset: CGSize, displayUUID: String?) {
     move(to: position, offset: offset, displayUUID: displayUUID)
     panel.orderFrontRegardless()
+    updateAutoHideTimer()
+    updateEyesPause()
   }
 
   func setVisible(_ isVisible: Bool) {
     if isVisible {
-      move(
-        to: currentPosition,
-        offset: currentOffset,
-        displayUUID: currentDisplayUUID
-      )
-      panel.orderFrontRegardless()
+      show(at: currentPosition, offset: currentOffset, displayUUID: currentDisplayUUID)
     } else {
       chatWindowController.hide()
       panel.orderOut(nil)
+      updateAutoHideTimer()
+      updateEyesPause()
     }
   }
 
@@ -214,35 +220,42 @@ final class MascotWindowController: NSObject {
 
   func setAutoHideMode(_ mode: AutoHideMode) {
     autoHideMode = mode
+    pointerLeftDate = nil
+    if mode == .off, autoHidden != nil {
+      reveal()
+    }
+    updateAutoHideTimer()
+  }
+
+  /// Polls the pointer only while auto-hide is on and the mascot is shown.
+  private func updateAutoHideTimer() {
+    let needsTimer = autoHideMode != .off && panel.isVisible
+    guard needsTimer != (autoHideTimer != nil) else { return }
     autoHideTimer?.invalidate()
     autoHideTimer = nil
-    pointerLeftDate = nil
-
-    guard mode != .off else {
-      if isAutoHidden { reveal(animated: true) }
-      return
-    }
-    autoHideTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+    guard needsTimer else { return }
+    let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.autoHideTick() }
     }
+    timer.tolerance = 0.01
+    autoHideTimer = timer
   }
 
   private func autoHideTick() {
-    guard autoHideMode != .off, panel.isVisible, !isDragging else { return }
+    guard !isDragging else { return }
     let pointer = NSEvent.mouseLocation
 
-    if isAutoHidden {
-      guard let hiddenEdge else { return }
+    if let autoHidden {
       let zone = PositionCalculator.revealZone(
-        origin: shownMascotOrigin,
+        origin: autoHidden.shownOrigin,
         windowSize: Self.mascotSize,
-        in: hiddenScreenFrame,
-        edge: hiddenEdge,
+        in: autoHidden.screenFrame,
+        edge: autoHidden.edge,
         thickness: autoHideMode == .peek
           ? AutoHideMode.peekStrip : Self.autoHideRevealThickness
       )
       if zone.contains(pointer) || dictationCoordinator.phase.isActive {
-        reveal(animated: true)
+        reveal()
       }
       return
     }
@@ -253,34 +266,29 @@ final class MascotWindowController: NSObject {
       pointerLeftDate = nil
       return
     }
-    let leftDate = pointerLeftDate ?? Date()
+    let now = Date()
+    let leftDate = pointerLeftDate ?? now
     pointerLeftDate = leftDate
-    if Date().timeIntervalSince(leftDate) >= autoHideDelay {
+    if now.timeIntervalSince(leftDate) >= autoHideDelay {
       hide()
     }
   }
 
   private func hide() {
-    guard let screen = screenContainingMost(of: mascotFrame)
-      ?? resolvedScreen(preferredUUID: currentDisplayUUID) else {
-      return
-    }
+    // Reset first, so a mascot that cannot hide here retries after a full delay, not every tick.
+    pointerLeftDate = nil
     let origin = mascotFrame.origin
-    let otherFrames = NSScreen.screens.map(\.frame).filter { $0 != screen.frame }
-    guard let edge = PositionCalculator.hideEdge(
-      origin: origin,
-      windowSize: Self.mascotSize,
-      in: screen.frame,
-      otherFrames: otherFrames
-    ) else {
+    guard let screen = screen(forMascotFrame: mascotFrame),
+          let edge = PositionCalculator.hideEdge(
+            origin: origin,
+            windowSize: Self.mascotSize,
+            in: screen.frame,
+            otherFrames: NSScreen.screens.map(\.frame).filter { $0 != screen.frame }
+          ) else {
       return
     }
 
-    shownMascotOrigin = origin
-    hiddenEdge = edge
-    hiddenScreenFrame = screen.frame
-    isAutoHidden = true
-    pointerLeftDate = nil
+    autoHidden = (edge, screen.frame, origin)
     // The transparent margin around the mascot would otherwise swallow clicks.
     panel.ignoresMouseEvents = true
 
@@ -291,22 +299,19 @@ final class MascotWindowController: NSObject {
       edge: edge,
       visibleStrip: autoHideMode.visibleStrip
     )
-    setPanelOrigin(panelOrigin(forMascotOrigin: hiddenOrigin), animated: true)
+    animatePanel(toMascotOrigin: hiddenOrigin)
   }
 
-  private func reveal(animated: Bool) {
-    isAutoHidden = false
+  private func reveal() {
+    guard let autoHidden else { return }
+    self.autoHidden = nil
     pointerLeftDate = nil
     panel.ignoresMouseEvents = false
-    setPanelOrigin(panelOrigin(forMascotOrigin: shownMascotOrigin), animated: animated)
+    animatePanel(toMascotOrigin: autoHidden.shownOrigin)
   }
 
-  private func setPanelOrigin(_ origin: CGPoint, animated: Bool) {
-    guard animated else {
-      panel.setFrameOrigin(origin)
-      return
-    }
-    let frame = CGRect(origin: origin, size: panel.frame.size)
+  private func animatePanel(toMascotOrigin origin: CGPoint) {
+    let frame = CGRect(origin: panelOrigin(forMascotOrigin: origin), size: panel.frame.size)
     NSAnimationContext.runAnimationGroup { [panel] context in
       context.duration = Self.autoHideAnimationDuration
       panel.animator().setFrame(frame, display: true)
@@ -315,7 +320,7 @@ final class MascotWindowController: NSObject {
 
   func move(to position: MascotPosition, offset: CGSize, displayUUID: String?) {
     // Any explicit placement cancels a pending hide; the timer re-hides if needed.
-    isAutoHidden = false
+    autoHidden = nil
     panel.ignoresMouseEvents = false
     pointerLeftDate = nil
     currentPosition = position
@@ -329,11 +334,10 @@ final class MascotWindowController: NSObject {
     if preferredUUID == nil || screenUUID == preferredUUID {
       currentDisplayUUID = screenUUID ?? preferredUUID
     }
-    let visibleFrame = screen.visibleFrame
 
     let requestedOrigin = PositionCalculator.origin(
       for: position,
-      in: visibleFrame,
+      in: screen.visibleFrame,
       windowSize: Self.mascotSize,
       margin: Self.edgeMargin,
       offset: offset
@@ -343,35 +347,23 @@ final class MascotWindowController: NSObject {
       windowSize: Self.mascotSize,
       to: screen.frame
     )
-    panel.setFrameOrigin(panelOrigin(forMascotOrigin: mascotOrigin))
-    updateAttachmentEdges(at: mascotOrigin, on: screen)
-    mascotFrameDidChange?(mascotFrame, screen)
-    if chatWindowController.isVisible {
-      chatWindowController.move(attachedTo: mascotFrame, on: screen)
-    }
+    place(atMascotOrigin: mascotOrigin, on: screen)
   }
 
   private func dragEnded(at pointerLocation: CGPoint) {
     isDragging = false
     guard let screen = screenContaining(pointerLocation)
-      ?? screenContainingMost(of: mascotFrame)
-      ?? resolvedScreen(preferredUUID: currentDisplayUUID) else {
+      ?? screen(forMascotFrame: mascotFrame) else {
       return
     }
-    let screenFrame = screen.frame
 
     let snappedOrigin = PositionCalculator.snappedToEdges(
       origin: mascotFrame.origin,
       windowSize: Self.mascotSize,
-      in: screenFrame,
+      in: screen.frame,
       threshold: Self.edgeSnapThreshold
     )
-    panel.setFrameOrigin(panelOrigin(forMascotOrigin: snappedOrigin))
-    updateAttachmentEdges(at: snappedOrigin, on: screen)
-    mascotFrameDidChange?(mascotFrame, screen)
-    if chatWindowController.isVisible {
-      chatWindowController.move(attachedTo: mascotFrame, on: screen)
-    }
+    place(atMascotOrigin: snappedOrigin, on: screen)
 
     let anchorOrigin = PositionCalculator.origin(
       for: currentPosition,
@@ -386,6 +378,22 @@ final class MascotWindowController: NSObject {
     currentOffset = offset
     currentDisplayUUID = Self.displayUUID(for: screen)
     offsetDidChange?(offset, currentDisplayUUID)
+  }
+
+  /// Moves the panel so the mascot sits at `origin`, and lets the edges, the session
+  /// mascots and the chat bubble follow.
+  private func place(atMascotOrigin origin: CGPoint, on screen: NSScreen) {
+    panel.setFrameOrigin(panelOrigin(forMascotOrigin: origin))
+    updateAttachmentEdges(at: origin, on: screen)
+    mascotFrameDidChange?(mascotFrame, screen)
+    if chatWindowController.isVisible {
+      chatWindowController.move(attachedTo: mascotFrame, on: screen)
+    }
+  }
+
+  /// Screen showing most of `frame`, else the current display.
+  private func screen(forMascotFrame frame: CGRect) -> NSScreen? {
+    screenContainingMost(of: frame) ?? resolvedScreen(preferredUUID: currentDisplayUUID)
   }
 
   private func resolvedScreen(preferredUUID: String?) -> NSScreen? {
@@ -404,28 +412,33 @@ final class MascotWindowController: NSObject {
 
   private func screenContainingMost(of windowFrame: CGRect) -> NSScreen? {
     let screens = NSScreen.screens
-    let frames = screens.map(\.frame)
-    let preferredIndex = currentDisplayUUID.flatMap { uuid in
+    return PositionCalculator.indexOfFrameContainingMost(
+      windowFrame,
+      among: screens.map(\.frame),
+      preferredIndex: currentScreenIndex(in: screens)
+    ).map { screens[$0] }
+  }
+
+  private func screenContaining(_ point: CGPoint) -> NSScreen? {
+    let screens = NSScreen.screens
+    return PositionCalculator.indexOfFrame(
+      containing: point,
+      among: screens.map(\.frame),
+      preferredIndex: currentScreenIndex(in: screens)
+    ).map { screens[$0] }
+  }
+
+  private func currentScreenIndex(in screens: [NSScreen]) -> Int? {
+    currentDisplayUUID.flatMap { uuid in
       screens.firstIndex { Self.displayUUID(for: $0) == uuid }
     }
-    guard let index = PositionCalculator.indexOfFrameContainingMost(
-      windowFrame,
-      among: frames,
-      preferredIndex: preferredIndex
-    ) else {
-      return nil
-    }
-    return screens[index]
   }
 
   /// Where the mascot is shown, even while it is slid away by auto-hide.
   var displayedMascotPlacement: (frame: CGRect, screen: NSScreen)? {
-    let frame = isAutoHidden ? CGRect(origin: shownMascotOrigin, size: Self.mascotSize) : mascotFrame
-    guard let screen = screenContainingMost(of: frame)
-      ?? resolvedScreen(preferredUUID: currentDisplayUUID) else {
-      return nil
-    }
-    return (frame, screen)
+    let frame = autoHidden.map { CGRect(origin: $0.shownOrigin, size: Self.mascotSize) }
+      ?? mascotFrame
+    return screen(forMascotFrame: frame).map { (frame, $0) }
   }
 
   private var mascotFrame: CGRect {
@@ -446,9 +459,7 @@ final class MascotWindowController: NSObject {
   }
 
   private func toggleChat() {
-    let screen = screenContainingMost(of: mascotFrame)
-      ?? resolvedScreen(preferredUUID: currentDisplayUUID)
-    chatWindowController.toggle(attachedTo: mascotFrame, on: screen)
+    chatWindowController.toggle(attachedTo: mascotFrame, on: screen(forMascotFrame: mascotFrame))
   }
 
   private func constrainedWindowOrigin(
@@ -460,18 +471,14 @@ final class MascotWindowController: NSObject {
       y: proposedOrigin.y + Self.drawingMargin
     )
     let proposedFrame = CGRect(origin: proposedMascotOrigin, size: Self.mascotSize)
-    let screen = screenContaining(pointerLocation)
-      ?? screenContainingMost(of: proposedFrame)
-      ?? resolvedScreen(preferredUUID: currentDisplayUUID)
+    guard let screen = screenContaining(pointerLocation)
+      ?? screen(forMascotFrame: proposedFrame) else {
+      return proposedOrigin
+    }
 
-    guard let screen else { return proposedOrigin }
-    let constrainedMascotOrigin = PositionCalculator.clamped(
-      origin: proposedMascotOrigin,
-      windowSize: Self.mascotSize,
-      to: screen.frame
-    )
+    // snappedToEdges clamps inside the screen first.
     let previewMascotOrigin = PositionCalculator.snappedToEdges(
-      origin: constrainedMascotOrigin,
+      origin: proposedMascotOrigin,
       windowSize: Self.mascotSize,
       in: screen.frame,
       threshold: Self.edgeSnapThreshold
@@ -482,29 +489,17 @@ final class MascotWindowController: NSObject {
   }
 
   private func updateAttachmentEdges(at origin: CGPoint, on screen: NSScreen) {
-    interactionState.updateAttachmentEdges(
-      PositionCalculator.attachmentEdges(
-        origin: origin,
-        windowSize: Self.mascotSize,
-        in: screen.frame
-      )
+    let edges = PositionCalculator.attachmentEdges(
+      origin: origin,
+      windowSize: Self.mascotSize,
+      in: screen.frame
     )
+    interactionState.updateAttachmentEdges(edges)
   }
 
-  private func screenContaining(_ point: CGPoint) -> NSScreen? {
-    let screens = NSScreen.screens
-    let frames = screens.map(\.frame)
-    let preferredIndex = currentDisplayUUID.flatMap { uuid in
-      screens.firstIndex { Self.displayUUID(for: $0) == uuid }
-    }
-    guard let index = PositionCalculator.indexOfFrame(
-      containing: point,
-      among: frames,
-      preferredIndex: preferredIndex
-    ) else {
-      return nil
-    }
-    return screens[index]
+  /// Nobody sees the eyes of a hidden or slid-away mascot: stop their 30 fps timeline.
+  private func updateEyesPause() {
+    interactionState.updateEyesArePaused(autoHidden != nil || !panel.isVisible)
   }
 
   private static func displayUUID(for screen: NSScreen) -> String? {

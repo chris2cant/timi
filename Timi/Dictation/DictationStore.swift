@@ -64,8 +64,7 @@ final class DictationStore: ObservableObject {
     let replacement = replacement.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !heard.isEmpty, !replacement.isEmpty, heard != replacement else { return }
     corrections.append(CorrectionRule(heard: heard, replacement: replacement, language: language))
-    addTerm(replacement, language: language, source: .correction)
-    save()
+    addTerm(replacement, language: language, source: .correction) // Also saves the new rule.
   }
 
   func updateCorrection(_ rule: CorrectionRule) {

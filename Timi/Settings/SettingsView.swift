@@ -26,6 +26,7 @@ struct SettingsView: View {
       dictationTab.tabItem { Label("Dictée", systemImage: "waveform") }
       vocabularyTab.tabItem { Label("Vocabulaire", systemImage: "text.book.closed") }
       historyTab.tabItem { Label("Historique", systemImage: "clock.arrow.circlepath") }
+      ExpressionGalleryView().tabItem { Label("Expressions", systemImage: "eyes") }
     }
     .padding(18)
     .frame(width: 620, height: 540)
@@ -80,13 +81,7 @@ struct SettingsView: View {
         }
       }
       Section("Mises à jour") {
-        Toggle(
-          "Vérifier automatiquement",
-          isOn: Binding(
-            get: { updateManager.automaticallyChecksForUpdates },
-            set: { updateManager.automaticallyChecksForUpdates = $0 }
-          )
-        )
+        Toggle("Vérifier automatiquement", isOn: $updateManager.automaticallyChecksForUpdates)
         Button("Rechercher des mises à jour…") { updateManager.checkForUpdates() }
           .disabled(!updateManager.canCheckForUpdates)
         Text("Version \(Self.versionDescription). Timi demande toujours avant d’installer une mise à jour.")
@@ -164,7 +159,7 @@ struct SettingsView: View {
           dictationStore.addTerm(newTerm, language: appState.dictationLanguage.locale.identifier)
           newTerm = ""
         }
-        .disabled(newTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .disabled(newTerm.isBlank)
       }
       HStack {
         TextField("Forme entendue", text: $newHeardForm)
@@ -180,8 +175,8 @@ struct SettingsView: View {
           newWantedForm = ""
         }
         .disabled(
-          newHeardForm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || newWantedForm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+          newHeardForm.isBlank
+            || newWantedForm.isBlank
         )
       }
       TextField("Rechercher", text: $vocabularySearch).textFieldStyle(.roundedBorder)
@@ -363,16 +358,17 @@ struct SettingsView: View {
   }
 }
 
-struct SettingsView_Previews: PreviewProvider {
-  static var previews: some View {
-    let defaults = UserDefaults(suiteName: "TimiPreview")!
-    SettingsView(
-      appState: AppState(defaults: defaults),
-      dictationStore: DictationStore(fileURL: FileManager.default.temporaryDirectory.appending(path: "timi-preview.json")),
-      shortcutMonitor: GlobalShortcutMonitor(),
-      updateManager: UpdateManager(),
-      requestShortcutPermission: {},
-      testGlobalDictation: {}
-    )
-  }
+private extension String {
+  var isBlank: Bool { trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+}
+
+#Preview {
+  SettingsView(
+    appState: AppState(defaults: UserDefaults(suiteName: "TimiPreview")!),
+    dictationStore: DictationStore(fileURL: FileManager.default.temporaryDirectory.appending(path: "timi-preview.json")),
+    shortcutMonitor: GlobalShortcutMonitor(),
+    updateManager: UpdateManager(),
+    requestShortcutPermission: {},
+    testGlobalDictation: {}
+  )
 }

@@ -1,6 +1,6 @@
 import CoreGraphics
 
-struct MascotAttachmentEdges: OptionSet, Equatable, Sendable {
+struct MascotAttachmentEdges: OptionSet, Sendable {
   let rawValue: Int
 
   static let left = Self(rawValue: 1 << 0)
@@ -9,7 +9,7 @@ struct MascotAttachmentEdges: OptionSet, Equatable, Sendable {
   static let top = Self(rawValue: 1 << 3)
 }
 
-enum HideEdge: CaseIterable, Equatable, Sendable {
+enum HideEdge: Sendable {
   case left
   case right
   case bottom
@@ -207,11 +207,10 @@ enum PositionCalculator {
     among frames: [CGRect],
     preferredIndex: Int? = nil
   ) -> Int? {
-    let matchingIndices = frames.indices.filter { frames[$0].contains(point) }
-    if let preferredIndex, matchingIndices.contains(preferredIndex) {
+    if let preferredIndex, frames.indices.contains(preferredIndex), frames[preferredIndex].contains(point) {
       return preferredIndex
     }
-    return matchingIndices.first
+    return frames.firstIndex { $0.contains(point) }
   }
 
   private static func intersectionArea(_ lhs: CGRect, _ rhs: CGRect) -> CGFloat {

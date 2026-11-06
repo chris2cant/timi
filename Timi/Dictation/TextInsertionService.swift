@@ -7,7 +7,6 @@ private let log = Logger(subsystem: "io.github.chris2cant.Timi", category: "inse
 
 struct FocusedTextContext: Sendable {
   let surroundingText: String
-  let acceptsText: Bool
   let isSecure: Bool
 }
 
@@ -15,7 +14,7 @@ struct FocusedTextContext: Sendable {
 final class TextInsertionService {
   func focusedContext() -> FocusedTextContext {
     guard !IsSecureEventInputEnabled(), let element = focusedElement() else {
-      return FocusedTextContext(surroundingText: "", acceptsText: false, isSecure: true)
+      return FocusedTextContext(surroundingText: "", isSecure: true)
     }
 
     return focusedContext(for: element)
@@ -29,7 +28,6 @@ final class TextInsertionService {
     let acceptsText = !secure && (textRoles.contains(role) || isValueSettable(on: element))
     return FocusedTextContext(
       surroundingText: acceptsText ? cursorContext(from: element) : "",
-      acceptsText: acceptsText,
       isSecure: secure
     )
   }
@@ -40,8 +38,8 @@ final class TextInsertionService {
       copy(text)
       return .copied
     }
-    // Chrome/Electron n'exposent souvent pas de champ texte via l'accessibilité :
-    // on ne bloque donc le collage que pour un champ explicitement sécurisé.
+    // Chrome and Electron often expose no text field through Accessibility,
+    // so pasting is only blocked for an explicitly secure field.
     let target = focusedElement()
     if let target, focusedContext(for: target).isSecure {
       copy(text)
@@ -130,10 +128,11 @@ final class TextInsertionService {
       }
     }
 
-    let units = Array(value.utf16)
-    let start = max(0, min(location - 250, units.count))
-    let end = max(start, min(location + 250, units.count))
-    return String(decoding: units[start..<end], as: UTF16.self)
+    // NSString indexes UTF-16 directly, without copying a possibly huge document.
+    let text = value as NSString
+    let start = max(0, min(location - 250, text.length))
+    let end = max(start, min(location + 250, text.length))
+    return text.substring(with: NSRange(location: start, length: end - start))
   }
 
   private func copy(_ text: String) {
@@ -141,7 +140,7 @@ final class TextInsertionService {
     NSPasteboard.general.setString(text, forType: .string)
   }
 
-  /// Control (raccourci Control+Espace) encore enfoncé transformerait Cmd+V en Ctrl+Cmd+V.
+  /// Control still held from the Control-Space shortcut would turn Cmd-V into Ctrl-Cmd-V.
   private func waitForModifierRelease() async {
     let blocking: CGEventFlags = [.maskControl, .maskAlternate, .maskShift]
     for _ in 0..<20 {

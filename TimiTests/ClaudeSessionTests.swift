@@ -65,6 +65,29 @@ final class ClaudeSessionStateTests: XCTestCase {
     XCTAssertEqual(next(.working, event("SessionStart", source: "resume")), .idle)
   }
 
+  func testReactionKindMapping() {
+    let expected: [String: ClaudeSessionReaction.Kind] = [
+      "UserPromptSubmit": .promptReceived, "PostToolUse": .toolSucceeded,
+      "PostToolUseFailure": .toolFailed, "SubagentStart": .subagentStarted,
+    ]
+    for (name, kind) in expected {
+      XCTAssertEqual(ClaudeSession.reactionKind(for: event(name), from: .idle), kind, name)
+      XCTAssertEqual(ClaudeSession.reactionKind(for: event(name), from: nil), kind, name)
+    }
+    for name in ["Stop", "PreToolUse", "SessionStart", "SubagentStop", "Notification", "TaskCompleted"] {
+      XCTAssertNil(ClaudeSession.reactionKind(for: event(name), from: .working), name)
+    }
+  }
+
+  func testSubAgentActivityDuringNeedsYouHasNoReaction() {
+    XCTAssertNil(ClaudeSession.reactionKind(for: event("PostToolUse", agent: "a1"), from: .needsYou))
+    XCTAssertNil(ClaudeSession.reactionKind(for: event("SubagentStart", agent: "a1"), from: .needsYou))
+    XCTAssertEqual(
+      ClaudeSession.reactionKind(for: event("PostToolUse"), from: .needsYou), .toolSucceeded)
+    XCTAssertEqual(
+      ClaudeSession.reactionKind(for: event("PostToolUse", agent: "a1"), from: .working), .toolSucceeded)
+  }
+
   func testProjectName() {
     let repos: Set<String> = ["/work/app/.git"]
     let exists: (String) -> Bool = { repos.contains($0) }
@@ -169,6 +192,46 @@ final class ClaudeSessionStoreTests: XCTestCase {
     XCTAssertEqual(store.sessions.map(\.id), ["a", "b"])
     XCTAssertEqual(store.sessions.map(\.status), [.working, .yourTurn])
     XCTAssertEqual(store.sessions[0].projectName, "proj")
+  }
+
+  private func request(_ name: String, agent: String) -> ClaudeHookRequest {
+    ClaudeHookRequest(
+      event: event(name, cwd: "/tmp/proj", agent: agent), context: ClaudeHookContext())
+  }
+
+  func testReactionSerialGrowsBetweenIdenticalReactions() throws {
+    let store = makeStore()
+    store.handle(request("PostToolUse"))
+    let first = try XCTUnwrap(store.sessions[0].reaction)
+    store.handle(request("PostToolUse"))
+    let second = try XCTUnwrap(store.sessions[0].reaction)
+    XCTAssertEqual(first.kind, .toolSucceeded)
+    XCTAssertEqual(second.kind, .toolSucceeded)
+    XCTAssertGreaterThan(second.serial, first.serial)
+  }
+
+  func testSessionCreatedByPromptCarriesReaction() {
+    let store = makeStore()
+    store.handle(request("UserPromptSubmit"))
+    XCTAssertEqual(store.sessions[0].reaction?.kind, .promptReceived)
+  }
+
+  func testEventWithoutReactionKeepsPreviousOne() {
+    let store = makeStore()
+    store.handle(request("PostToolUseFailure"))
+    let previous = store.sessions[0].reaction
+    store.handle(request("Stop"))
+    XCTAssertEqual(store.sessions[0].status, .yourTurn)
+    XCTAssertEqual(store.sessions[0].reaction, previous)
+  }
+
+  func testSubAgentToolDuringNeedsYouDoesNotReact() {
+    let store = makeStore()
+    store.handle(request("PermissionRequest"))
+    XCTAssertNil(store.sessions[0].reaction)
+    store.handle(request("PostToolUse", agent: "a1"))
+    XCTAssertNil(store.sessions[0].reaction)
+    XCTAssertEqual(store.sessions[0].status, .needsYou)
   }
 
   func testContextIsMergedAndSessionEndRemoves() {
@@ -352,6 +415,8 @@ final class ClaudeHookServerTests: XCTestCase {
     }
     try server.start()
     defer { server.stop() }
+    let attributes = try FileManager.default.attributesOfItem(atPath: path.path)
+    XCTAssertEqual(attributes[.posixPermissions] as? Int, 0o600)
 
     let code = try await Task.detached {
       let process = Process()

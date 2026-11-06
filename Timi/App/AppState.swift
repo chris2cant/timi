@@ -72,6 +72,51 @@ enum AutoHideMode: String, CaseIterable, Identifiable {
   }
 }
 
+/// Body color of a session mascot, picked per project from a fixed palette.
+/// Tinted blacks: the mascot still reads as black, with a hint of the project color.
+enum MascotColor: String, CaseIterable, Identifiable {
+  case black
+  case slate
+  case indigo
+  case violet
+  case plum
+  case wine
+  case brown
+  case forest
+  case teal
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .black: "Noir"
+    case .slate: "Ardoise"
+    case .indigo: "Indigo"
+    case .violet: "Violet"
+    case .plum: "Prune"
+    case .wine: "Bordeaux"
+    case .brown: "Brun"
+    case .forest: "Forêt"
+    case .teal: "Sarcelle"
+    }
+  }
+
+  /// sRGB components.
+  var rgb: (red: Double, green: Double, blue: Double) {
+    switch self {
+    case .black: (0, 0, 0)
+    case .slate: (0.11, 0.137, 0.18)
+    case .indigo: (0.114, 0.122, 0.271)
+    case .violet: (0.165, 0.102, 0.247)
+    case .plum: (0.212, 0.094, 0.204)
+    case .wine: (0.227, 0.078, 0.11)
+    case .brown: (0.2, 0.137, 0.059)
+    case .forest: (0.075, 0.188, 0.118)
+    case .teal: (0.055, 0.184, 0.2)
+    }
+  }
+}
+
 @MainActor
 final class AppState: ObservableObject {
   static let defaultAutoHideDelay: TimeInterval = 0.5
@@ -90,19 +135,14 @@ final class AppState: ObservableObject {
     static let autoHideMode = "autoHideMode"
     static let autoHideDelay = "autoHideDelay"
     static let showsClaudeSessions = "showsClaudeSessions"
+    static let projectColors = "projectColors"
   }
 
   @Published private(set) var position: MascotPosition
   @Published private(set) var offset: CGSize
   @Published private(set) var displayUUID: String?
   @Published var speechVoiceIdentifier: String? {
-    didSet {
-      if let speechVoiceIdentifier {
-        defaults.set(speechVoiceIdentifier, forKey: Keys.speechVoiceIdentifier)
-      } else {
-        defaults.removeObject(forKey: Keys.speechVoiceIdentifier)
-      }
-    }
+    didSet { defaults.set(speechVoiceIdentifier, forKey: Keys.speechVoiceIdentifier) }
   }
   @Published var dictationLanguage: DictationLanguage {
     didSet {
@@ -145,6 +185,9 @@ final class AppState: ObservableObject {
     }
   }
 
+  /// Session mascot colors by project name; projects left black are absent.
+  @Published private(set) var projectColors: [String: MascotColor]
+
   private let defaults: UserDefaults
   var placementDidChange: ((MascotPosition, CGSize, String?) -> Void)?
   var visibilityDidChange: ((Bool) -> Void)?
@@ -171,18 +214,27 @@ final class AppState: ObservableObject {
     isVisible = defaults.object(forKey: Keys.mascotIsVisible) as? Bool ?? true
     autoHideMode = defaults.string(forKey: Keys.autoHideMode)
       .flatMap(AutoHideMode.init(rawValue:)) ?? .off
-    autoHideDelay = defaults.object(forKey: Keys.autoHideDelay) as? Double ?? Self.defaultAutoHideDelay
+    autoHideDelay = (defaults.object(forKey: Keys.autoHideDelay) as? Double)
+      .map { min(max($0, Self.autoHideDelayRange.lowerBound), Self.autoHideDelayRange.upperBound) }
+      ?? Self.defaultAutoHideDelay
     showsClaudeSessions = defaults.object(forKey: Keys.showsClaudeSessions) as? Bool ?? true
+    projectColors = (defaults.dictionary(forKey: Keys.projectColors) as? [String: String] ?? [:])
+      .compactMapValues(MascotColor.init(rawValue:))
+  }
+
+  func color(forProject projectName: String) -> MascotColor {
+    projectColors[projectName] ?? .black
+  }
+
+  func setColor(_ color: MascotColor, forProject projectName: String) {
+    projectColors[projectName] = color == .black ? nil : color
+    defaults.set(projectColors.mapValues(\.rawValue), forKey: Keys.projectColors)
   }
 
   func select(_ position: MascotPosition) {
     self.position = position
     offset = .zero
     persistPlacement()
-  }
-
-  func updateOffset(_ offset: CGSize) {
-    updatePlacement(offset: offset, displayUUID: displayUUID)
   }
 
   func updatePlacement(offset: CGSize, displayUUID: String?) {
@@ -192,18 +244,14 @@ final class AppState: ObservableObject {
   }
 
   func resetOffset() {
-    updateOffset(.zero)
+    updatePlacement(offset: .zero, displayUUID: displayUUID)
   }
 
   private func persistPlacement() {
     defaults.set(position.rawValue, forKey: Keys.mascotPosition)
     defaults.set(offset.width, forKey: Keys.mascotOffsetX)
     defaults.set(offset.height, forKey: Keys.mascotOffsetY)
-    if let displayUUID {
-      defaults.set(displayUUID, forKey: Keys.mascotDisplayUUID)
-    } else {
-      defaults.removeObject(forKey: Keys.mascotDisplayUUID)
-    }
+    defaults.set(displayUUID, forKey: Keys.mascotDisplayUUID)
     placementDidChange?(position, offset, displayUUID)
   }
 }

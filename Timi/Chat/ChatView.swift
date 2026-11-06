@@ -28,10 +28,7 @@ struct ChatView: View {
       RoundedRectangle(cornerRadius: 20, style: .continuous)
         .stroke(.white.opacity(0.12), lineWidth: 1)
     }
-    .onAppear {
-      state.refreshAvailability()
-      inputIsFocused = true
-    }
+    .onAppear { inputIsFocused = true }
     .onExitCommand(perform: closeConversation)
   }
 
@@ -109,15 +106,12 @@ struct ChatView: View {
       Text("Bonjour 👋")
         .font(.title3.weight(.semibold))
 
-      if let availabilityMessage = state.availabilityMessage {
-        Text(availabilityMessage)
-          .foregroundStyle(.secondary)
-          .multilineTextAlignment(.center)
-      } else {
-        Text("Pose-moi une question. Mes réponses sont générées localement par Apple Intelligence.")
-          .foregroundStyle(.secondary)
-          .multilineTextAlignment(.center)
-      }
+      Text(
+        state.availabilityMessage
+          ?? "Pose-moi une question. Mes réponses sont générées localement par Apple Intelligence."
+      )
+      .foregroundStyle(.secondary)
+      .multilineTextAlignment(.center)
       Spacer(minLength: 38)
     }
     .frame(maxWidth: .infinity)
@@ -218,8 +212,7 @@ struct ChatView: View {
   }
 
   private func closeConversation() {
-    state.stopDictation()
-    state.stopSpeaking()
+    state.close()
     close()
   }
 }

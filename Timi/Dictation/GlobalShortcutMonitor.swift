@@ -65,22 +65,23 @@ final class GlobalShortcutMonitor: ObservableObject {
 
   var permissionMissing: Bool { status == .permissionRequired }
 
-  nonisolated(unsafe) private var eventTap: CFMachPort?
+  private var eventTap: CFMachPort?
   private var runLoopSource: CFRunLoopSource?
-  nonisolated(unsafe) private var hotKey: EventHotKeyRef?
-  nonisolated(unsafe) private var hotKeyHandler: EventHandlerRef?
+  private var hotKey: EventHotKeyRef?
+  private var hotKeyHandler: EventHandlerRef?
   private var state = HybridShortcutState()
   private var holdTask: Task<Void, Never>?
   private var permissionRetryTask: Task<Void, Never>?
   private var canSuppressEvents = false
   private var isStarted = false
 
-  deinit {
+  // Isolated so the run loop source is removed too: the callbacks hold an unretained pointer.
+  isolated deinit {
     holdTask?.cancel()
     permissionRetryTask?.cancel()
-    if let hotKey { UnregisterEventHotKey(hotKey) }
+    removeSystemHotKey()
     if let hotKeyHandler { RemoveEventHandler(hotKeyHandler) }
-    if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: false) }
+    removeEventTap()
   }
 
   func start() {
@@ -273,9 +274,6 @@ final class GlobalShortcutMonitor: ObservableObject {
     }
 
     let isSpace = event.getIntegerValueField(.keyboardEventKeycode) == 49
-    let modifierMask: CGEventFlags = [
-      .maskControl, .maskShift, .maskAlternate, .maskCommand, .maskSecondaryFn
-    ]
     guard isSpace else { return Unmanaged.passUnretained(event) }
 
     if type == .keyUp, state.keyIsDown {
@@ -283,6 +281,9 @@ final class GlobalShortcutMonitor: ObservableObject {
       return canSuppressEvents ? nil : Unmanaged.passUnretained(event)
     }
 
+    let modifierMask: CGEventFlags = [
+      .maskControl, .maskShift, .maskAlternate, .maskCommand, .maskSecondaryFn
+    ]
     let matchesModifiers = event.flags.intersection(modifierMask) == shortcut.eventFlags
     guard matchesModifiers else { return Unmanaged.passUnretained(event) }
 

@@ -155,8 +155,9 @@ enum DictationTextCleanup {
     guard !refined.isEmpty, !raw.isEmpty else { return false }
     let ratio = Double(refined.count) / Double(raw.count)
     guard (0.55...1.65).contains(ratio) else { return false }
+    let lowercased = refined.lowercased()
     let conversationalPrefixes = ["bien sûr", "voici", "certainement", "je peux"]
-    return !conversationalPrefixes.contains { refined.lowercased().hasPrefix($0) }
+    return !conversationalPrefixes.contains { lowercased.hasPrefix($0) }
   }
 }
 

@@ -106,7 +106,13 @@ enum SessionFocuser {
     arguments: [String],
     socketVariable: (name: String, value: String?)
   ) {
-    guard let cliPath = candidates.first(where: FileManager.default.isExecutableFile(atPath:)) else {
+    // Paths from hook headers must name the expected CLI, not just any executable.
+    guard
+      let cliPath = candidates.first(where: {
+        URL(fileURLWithPath: $0).lastPathComponent == name
+          && FileManager.default.isExecutableFile(atPath: $0)
+      })
+    else {
       logger.error("\(name, privacy: .public) CLI not found, cannot focus session")
       return
     }

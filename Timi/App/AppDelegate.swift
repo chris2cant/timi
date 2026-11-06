@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   let updateManager = UpdateManager()
   private var wasHiddenBeforeDictation = false
   private let sessionStore = ClaudeSessionStore()
+  private let usageStore = ClaudeUsageStore()
   private var hookServer: ClaudeHookServer?
   private var sessionMascotsController: SessionMascotsWindowController?
   private let logger = Logger(subsystem: "io.github.chris2cant.Timi", category: "ClaudeHooks")
@@ -57,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.wasHiddenBeforeDictation = !self.appState.isVisible
         if self.wasHiddenBeforeDictation { controller.setVisible(true) }
       } else if self.wasHiddenBeforeDictation {
-        controller.setVisible(false)
+        controller.setVisible(self.appState.isVisible)
         self.wasHiddenBeforeDictation = false
       }
     }
@@ -113,9 +114,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func startClaudeSessions(mascotController: MascotWindowController) {
     // The test host must not take the socket of an installed Timi running alongside.
     if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
-      let server = ClaudeHookServer(onRequest: { [weak sessionStore] request in
-        sessionStore?.handle(request)
-      })
+      let server = ClaudeHookServer(
+        onRequest: { [weak sessionStore] request in sessionStore?.handle(request) },
+        onUsage: { [weak usageStore] limits in usageStore?.update(with: limits) }
+      )
       do {
         try server.start()
       } catch {
@@ -127,7 +129,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     sessionStore.startLivenessChecks()
 
-    let sessionsController = SessionMascotsWindowController(store: sessionStore)
+    let sessionsController = SessionMascotsWindowController(
+      store: sessionStore,
+      usageStore: usageStore,
+      appState: appState
+    )
     sessionMascotsController = sessionsController
     updateSessionMascotsVisibility()
     mascotController.mascotFrameDidChange = { [weak sessionsController] frame, screen in

@@ -216,6 +216,21 @@ final class PositionCalculatorTests: XCTestCase {
     )
   }
 
+  func testPointSelectionPrefersCurrentScreenOnlyWhenItContainsThePoint() {
+    let screens = [
+      CGRect(x: 0, y: 0, width: 1_000, height: 800),
+      CGRect(x: 1_000, y: 0, width: 1_000, height: 800),
+    ]
+    let seam = CGPoint(x: 1_000, y: 100)
+
+    XCTAssertEqual(PositionCalculator.indexOfFrame(containing: seam, among: screens, preferredIndex: 1), 1)
+    XCTAssertEqual(
+      PositionCalculator.indexOfFrame(containing: CGPoint(x: 10, y: 10), among: screens, preferredIndex: 1),
+      0
+    )
+    XCTAssertEqual(PositionCalculator.indexOfFrame(containing: seam, among: screens, preferredIndex: 5), 1)
+  }
+
   private func origin(_ position: MascotPosition) -> CGPoint {
     PositionCalculator.origin(
       for: position,

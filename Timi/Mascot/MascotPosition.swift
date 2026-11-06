@@ -24,20 +24,4 @@ enum MascotPosition: String, CaseIterable, Identifiable, Sendable {
     case .bottomRight: "Bottom Right"
     }
   }
-
-  var gridColumn: Int {
-    switch self {
-    case .topLeft, .centerLeft, .bottomLeft: 0
-    case .topCenter, .bottomCenter: 1
-    case .topRight, .centerRight, .bottomRight: 2
-    }
-  }
-
-  var gridRow: Int {
-    switch self {
-    case .topLeft, .topCenter, .topRight: 0
-    case .centerLeft, .centerRight: 1
-    case .bottomLeft, .bottomCenter, .bottomRight: 2
-    }
-  }
 }

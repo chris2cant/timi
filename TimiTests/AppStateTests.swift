@@ -115,6 +115,31 @@ final class AppStateTests: XCTestCase {
     }
   }
 
+  func testProjectColorsDefaultToBlackAndPersistPerProject() {
+    withDefaults { defaults in
+      let state = AppState(defaults: defaults)
+
+      XCTAssertEqual(state.color(forProject: "timi"), .black)
+      state.setColor(.violet, forProject: "timi")
+      state.setColor(.teal, forProject: "api")
+      state.setColor(.black, forProject: "api")
+
+      let restored = AppState(defaults: defaults)
+      XCTAssertEqual(restored.color(forProject: "timi"), .violet)
+      XCTAssertEqual(restored.color(forProject: "api"), .black)
+      XCTAssertEqual(restored.projectColors, ["timi": .violet])
+    }
+  }
+
+  func testStoredAutoHideDelayIsClampedToRange() {
+    withDefaults { defaults in
+      defaults.set(99.0, forKey: "autoHideDelay")
+      XCTAssertEqual(AppState(defaults: defaults).autoHideDelay, AppState.autoHideDelayRange.upperBound)
+      defaults.set(-3.0, forKey: "autoHideDelay")
+      XCTAssertEqual(AppState(defaults: defaults).autoHideDelay, AppState.autoHideDelayRange.lowerBound)
+    }
+  }
+
   func testInvalidStoredPositionFallsBackToBottomRight() {
     withDefaults { defaults in
       defaults.set("not-a-position", forKey: "mascotPosition")
@@ -126,7 +151,7 @@ final class AppStateTests: XCTestCase {
   func testSelectingAnchorResetsOffsetPersistsAndNotifies() {
     withDefaults { defaults in
       let state = AppState(defaults: defaults)
-      state.updateOffset(CGSize(width: 25, height: -10))
+      state.updatePlacement(offset: CGSize(width: 25, height: -10), displayUUID: nil)
 
       var observedPosition: MascotPosition?
       var observedOffset: CGSize?
@@ -155,7 +180,7 @@ final class AppStateTests: XCTestCase {
       state.placementDidChange = { _, offset, _ in observedOffset = offset }
       state.visibilityDidChange = { observedVisibility = $0 }
 
-      state.updateOffset(CGSize(width: -30, height: 12))
+      state.updatePlacement(offset: CGSize(width: -30, height: 12), displayUUID: nil)
       XCTAssertEqual(observedOffset, CGSize(width: -30, height: 12))
       XCTAssertEqual(defaults.double(forKey: "mascotOffsetX"), -30)
       XCTAssertEqual(defaults.double(forKey: "mascotOffsetY"), 12)

@@ -9,6 +9,7 @@ final class SpeechInputController: ObservableObject {
   @Published private(set) var isPreparing = false
   @Published private(set) var statusMessage: String?
 
+  var onRecordingStart: (() -> Void)?
   var onTranscriptChange: ((String) -> Void)?
   var onMeterChange: ((AudioMeterSnapshot) -> Void)?
   var onFinished: ((String) -> Void)?
@@ -35,14 +36,6 @@ final class SpeechInputController: ObservableObject {
     resultsTask?.cancel()
   }
 
-  func toggle(locale: Locale) {
-    if isRecording {
-      stop()
-    } else if !isPreparing {
-      start(locale: locale)
-    }
-  }
-
   func start(locale: Locale, contextualStrings: [String] = []) {
     guard !isActive else { return }
 
@@ -66,20 +59,20 @@ final class SpeechInputController: ObservableObject {
           preset.reportingOptions.insert(.alternativeTranscriptions)
           preset.attributeOptions.insert(.transcriptionConfidence)
           let transcriber = SpeechTranscriber(locale: supportedLocale, preset: preset)
-          try await begin(using: transcriber, contextualStrings: contextualStrings)
+          try await begin(transcriber, results: transcriber.results, contextualStrings: contextualStrings)
         } else if let supportedLocale = await DictationTranscriber.supportedLocale(equivalentTo: locale) {
           let transcriber = DictationTranscriber(
             locale: supportedLocale,
             preset: .progressiveShortDictation
           )
-          try await begin(using: transcriber, contextualStrings: contextualStrings)
+          try await begin(transcriber, results: transcriber.results, contextualStrings: contextualStrings)
         } else {
           throw SpeechInputError.unsupportedLocale
         }
-      } catch is CancellationError {
-        await self.stopPipeline(finalize: false)
-        reset()
       } catch {
+        // Only stop() cancels the preparation, and it owns the cleanup from then on:
+        // touching shared state here could clobber a session started right after.
+        guard !Task.isCancelled else { return }
         await self.stopPipeline(finalize: false)
         fail(with: error)
       }
@@ -87,8 +80,12 @@ final class SpeechInputController: ObservableObject {
   }
 
   func stop() {
-    guard isActive else { return }
+    // Neither preparing nor recording means a previous stop() is already finalizing.
+    guard preparationTask != nil || pipeline != nil else { return }
 
+    // Before recording starts the analyzer may not be running yet, so its
+    // results would never end: there is nothing to finalize, only to cancel.
+    let wasRecording = isRecording
     preparationTask?.cancel()
     preparationTask = nil
     isPreparing = true
@@ -98,13 +95,13 @@ final class SpeechInputController: ObservableObject {
     let pipeline = pipeline
     let resultsTask = resultsTask
     self.pipeline = nil
+    if !wasRecording { resultsTask?.cancel() }
 
     Task { [weak self] in
       do {
-        try await pipeline?.stop(finalize: true)
-        await resultsTask?.value
+        try await pipeline?.stop(finalize: wasRecording)
+        if wasRecording { await resultsTask?.value }
       } catch {
-        guard !Task.isCancelled else { return }
         self?.fail(with: error)
         return
       }
@@ -116,12 +113,13 @@ final class SpeechInputController: ObservableObject {
   }
 
   private func begin(
-    using transcriber: SpeechTranscriber,
+    _ module: any SpeechModule,
+    results: some AsyncSequence<some TranscriptionResult, any Error> & Sendable,
     contextualStrings: [String]
   ) async throws {
     resultsTask = Task { [weak self] in
       do {
-        for try await result in transcriber.results {
+        for try await result in results {
           guard !Task.isCancelled else { return }
           self?.onAlternativesChange?(
             result.alternatives.prefix(2).map { String($0.characters) }
@@ -134,29 +132,7 @@ final class SpeechInputController: ObservableObject {
       }
     }
 
-    try await beginAnalysis(modules: [transcriber], contextualStrings: contextualStrings)
-  }
-
-  private func begin(
-    using transcriber: DictationTranscriber,
-    contextualStrings: [String]
-  ) async throws {
-    resultsTask = Task { [weak self] in
-      do {
-        for try await result in transcriber.results {
-          guard !Task.isCancelled else { return }
-          self?.onAlternativesChange?(
-            result.alternatives.prefix(2).map { String($0.characters) }
-          )
-          self?.receive(text: String(result.text.characters), isFinal: result.isFinal)
-        }
-      } catch {
-        guard !Task.isCancelled else { return }
-        await self?.handleResultsFailure(error)
-      }
-    }
-
-    try await beginAnalysis(modules: [transcriber], contextualStrings: contextualStrings)
+    try await beginAnalysis(modules: [module], contextualStrings: contextualStrings)
   }
 
   private func beginAnalysis(
@@ -196,6 +172,7 @@ final class SpeechInputController: ObservableObject {
     isPreparing = false
     isRecording = true
     statusMessage = "À l’écoute… clique sur le micro pour terminer."
+    onRecordingStart?()
   }
 
   private func handleResultsFailure(_ error: Error) async {
@@ -216,9 +193,6 @@ final class SpeechInputController: ObservableObject {
     } else {
       volatileTranscript = text
     }
-
-    let transcript = (finalizedTranscript + volatileTranscript)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
     onTranscriptChange?(transcript)
   }
 
@@ -304,11 +278,14 @@ private actor SpeechAudioPipeline {
 
       try await analyzer.start(inputSequence: inputSequence)
       try Task.checkCancellation()
+      // stop() may have run on this actor while start() was suspended; installing
+      // the tap now would leave a microphone running that nobody can stop.
+      guard self.analyzer === analyzer else { throw CancellationError() }
 
       inputNode.installTap(onBus: 0, bufferSize: 1_024, format: inputFormat) { buffer, _ in
         meter.consume(buffer)
         do {
-          for input in try converter.convert(buffer) {
+          if let input = try converter.convert(buffer) {
             continuation.yield(input)
           }
         } catch {
@@ -320,22 +297,21 @@ private actor SpeechAudioPipeline {
       engine.prepare()
       try engine.start()
     } catch {
-      cleanUpAudioInput()
-      analyzer = nil
+      try? await stop(finalize: false)
       throw error
     }
   }
 
   func stop(finalize: Bool) async throws {
     let analyzer = analyzer
+    self.analyzer = nil
     cleanUpAudioInput()
-
-    defer {
-      self.analyzer = nil
-    }
 
     if finalize {
       try await analyzer?.finalizeAndFinishThroughEndOfInput()
+    } else {
+      // Releases the analysis resources instead of leaving an orphan analyzer waiting for input.
+      await analyzer?.cancelAndFinishNow()
     }
   }
 
@@ -402,7 +378,7 @@ private final class AudioBufferConverter: @unchecked Sendable {
     self.outputFormat = outputFormat
   }
 
-  func convert(_ inputBuffer: AVAudioPCMBuffer) throws -> [AnalyzerInput] {
+  func convert(_ inputBuffer: AVAudioPCMBuffer) throws -> AnalyzerInput? {
     let ratio = outputFormat.sampleRate / inputBuffer.format.sampleRate
     let capacity = AVAudioFrameCount(ceil(Double(inputBuffer.frameLength) * ratio))
     guard let outputBuffer = AVAudioPCMBuffer(
@@ -421,9 +397,8 @@ private final class AudioBufferConverter: @unchecked Sendable {
     if let conversionError {
       throw conversionError
     }
-    guard status != .error, outputBuffer.frameLength > 0 else { return [] }
-
-    return [AnalyzerInput(buffer: outputBuffer)]
+    guard status != .error, outputBuffer.frameLength > 0 else { return nil }
+    return AnalyzerInput(buffer: outputBuffer)
   }
 }
 
@@ -453,3 +428,12 @@ private final class ConverterInputSource: @unchecked Sendable {
     return buffer
   }
 }
+
+/// The shape shared by `SpeechTranscriber` and `DictationTranscriber` results.
+private protocol TranscriptionResult: SpeechModuleResult {
+  var text: AttributedString { get }
+  var alternatives: [AttributedString] { get }
+}
+
+extension SpeechTranscriber.Result: TranscriptionResult {}
+extension DictationTranscriber.Result: TranscriptionResult {}

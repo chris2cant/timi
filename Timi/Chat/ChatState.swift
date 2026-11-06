@@ -25,7 +25,6 @@ final class ChatState: ObservableObject {
   @Published private(set) var messages: [ChatMessage] = []
   @Published private(set) var availabilityMessage: String?
   @Published private(set) var isResponding = false
-  @Published private(set) var isSpeaking = false
   @Published private(set) var isMuted = false
 
   let speechInput: SpeechInputController
@@ -35,6 +34,9 @@ final class ChatState: ObservableObject {
 
   private var session: LanguageModelSession?
   private var inputBeforeDictation = ""
+  // Set when the person closes the conversation: an answer still being
+  // generated must not start speaking once the bubble is gone.
+  private var isAnswerSilenced = false
 
   private var responseTask: Task<Void, Never>?
 
@@ -51,9 +53,6 @@ final class ChatState: ObservableObject {
       guard let self else { return }
       let separator = inputBeforeDictation.isEmpty || transcript.isEmpty ? "" : " "
       input = inputBeforeDictation + separator + transcript
-    }
-    speechOutput.isSpeakingDidChange = { [weak self] isSpeaking in
-      self?.isSpeaking = isSpeaking
     }
     refreshAvailability()
   }
@@ -85,13 +84,13 @@ final class ChatState: ObservableObject {
     guard availabilityMessage == nil else { return }
 
     speechOutput.stop()
+    isAnswerSilenced = false
     input = ""
     messages.append(ChatMessage(role: .user, content: question))
     let responseID = UUID()
     messages.append(ChatMessage(id: responseID, role: .timi, content: ""))
     isResponding = true
 
-    responseTask?.cancel()
     responseTask = Task { [weak self] in
       guard let self else { return }
       await self.generateResponse(to: question, messageID: responseID)
@@ -111,7 +110,9 @@ final class ChatState: ObservableObject {
     if speechInput.isActive { dictationCoordinator.stop() }
   }
 
-  func stopSpeaking() {
+  func close() {
+    stopDictation()
+    isAnswerSilenced = true
     speechOutput.stop()
   }
 
@@ -171,7 +172,7 @@ final class ChatState: ObservableObject {
   }
 
   private func speak(_ text: String) {
-    guard !isMuted else { return }
+    guard !isMuted, !isAnswerSilenced else { return }
     speechOutput.speak(text, preferredVoiceIdentifier: appState.speechVoiceIdentifier)
   }
 }

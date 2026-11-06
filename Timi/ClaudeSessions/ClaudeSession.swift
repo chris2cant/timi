@@ -10,12 +10,24 @@ enum ClaudeSessionStatus: Equatable, Sendable {
   case yourTurn
 }
 
+/// Brief event the mascot reacts to with a gesture, on top of its status.
+struct ClaudeSessionReaction: Equatable, Sendable {
+  enum Kind: Equatable, Sendable {
+    case promptReceived, toolSucceeded, toolFailed, subagentStarted
+  }
+  let kind: Kind
+  /// Grows with every reaction, so two identical reactions in a row still differ.
+  let serial: Int
+}
+
 struct ClaudeSession: Identifiable, Equatable, Sendable {
   /// Claude Code `session_id`.
   let id: String
   var projectName: String
   var status: ClaudeSessionStatus
   var context: ClaudeHookContext
+  /// Last gesture to play; kept until the next one.
+  var reaction: ClaudeSessionReaction? = nil
 
   /// Status after `event`. `current == nil` means the session is unknown.
   /// Returns `nil` when the session must not exist (ended, or end of an unknown one).
@@ -35,7 +47,7 @@ struct ClaudeSession: Identifiable, Equatable, Sendable {
       // Claude Code ends internal background agents after `Stop`: the turn stays over.
       next = current ?? .idle
     case "PreToolUse":
-      next = event.toolName.map { ["AskUserQuestion", "ExitPlanMode"].contains($0) } == true ? .needsYou : .working
+      next = event.toolName == "AskUserQuestion" || event.toolName == "ExitPlanMode" ? .needsYou : .working
     case "PermissionRequest":
       next = .needsYou
     case "Notification":
@@ -59,6 +71,22 @@ struct ClaudeSession: Identifiable, Equatable, Sendable {
     return next
   }
 
+  /// Gesture for `event`, given the status `current` before it (`nil` when unknown).
+  /// Sub-agent activity during `.needsYou` stays silent, like in `nextStatus`.
+  static func reactionKind(
+    for event: ClaudeHookEvent,
+    from current: ClaudeSessionStatus?
+  ) -> ClaudeSessionReaction.Kind? {
+    if current == .needsYou, event.agentID != nil { return nil }
+    switch event.hookEventName {
+    case "UserPromptSubmit": return .promptReceived
+    case "PostToolUse": return .toolSucceeded
+    case "PostToolUseFailure": return .toolFailed
+    case "SubagentStart": return .subagentStarted
+    default: return nil
+    }
+  }
+
   /// Name of the git repository containing `cwd`, else its last path component.
   static func projectName(
     forWorkingDirectory cwd: String?,
@@ -77,5 +105,4 @@ struct ClaudeSession: Identifiable, Equatable, Sendable {
     let name = URL(fileURLWithPath: cwd).lastPathComponent
     return name.isEmpty ? "Claude" : name
   }
-
 }

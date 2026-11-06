@@ -14,7 +14,6 @@ final class DictationCoordinator: ObservableObject {
   @Published private(set) var meterLevels = Array(repeating: Float.zero, count: 9)
   @Published private(set) var startedAt: Date?
   @Published private(set) var isSilent = false
-  @Published private(set) var rawTranscript = ""
 
   let speechInput = SpeechInputController()
   let store: DictationStore
@@ -28,13 +27,18 @@ final class DictationCoordinator: ObservableObject {
   private var lastBufferDate: Date?
   private var lastAudibleDate: Date?
   private var watchdogTask: Task<Void, Never>?
-  private var preparedRefinementSession: LanguageModelSession?
+  // Not published: nothing renders it, and it changes with every partial result.
+  private var rawTranscript = ""
   private var uncertainAlternatives: [String] = []
 
   init(appState: AppState, store: DictationStore) {
     self.appState = appState
     self.store = store
 
+    speechInput.onRecordingStart = { [weak self] in
+      guard let self, phase == .preparing else { return }
+      phase = .listening
+    }
     speechInput.onTranscriptChange = { [weak self] transcript in
       guard let self else { return }
       rawTranscript = transcript
@@ -51,12 +55,9 @@ final class DictationCoordinator: ObservableObject {
       self?.fail(message, recoverableText: transcript)
     }
     speechInput.onAlternativesChange = { [weak self] alternatives in
-      guard let self else { return }
-      uncertainAlternatives = Array(alternatives.prefix(2))
+      self?.uncertainAlternatives = alternatives
     }
   }
-
-  var isListening: Bool { phase == .listening || phase == .preparing }
 
   func toggleGlobal() {
     if phase.isActive {
@@ -67,7 +68,8 @@ final class DictationCoordinator: ObservableObject {
   }
 
   func start(destination: Destination) {
-    guard !phase.isActive else { return }
+    // The recognizer may still be finalizing a session that already failed.
+    guard !phase.isActive, !speechInput.isActive else { return }
     self.destination = destination
     rawTranscript = ""
     uncertainAlternatives = []
@@ -82,7 +84,6 @@ final class DictationCoordinator: ObservableObject {
     if destination == .global {
       temporaryVisibilityChange?(true)
       announce("Début de la dictée")
-      preparedRefinementSession = makeRefinementSession()
     }
 
     speechInput.start(
@@ -104,13 +105,6 @@ final class DictationCoordinator: ObservableObject {
         }
       }
     }
-
-    Task { [weak self] in
-      while !Task.isCancelled, let self, self.phase == .preparing {
-        try? await Task.sleep(for: .milliseconds(50))
-        if self.speechInput.isRecording { self.phase = .listening }
-      }
-    }
   }
 
   func stop() {
@@ -123,11 +117,11 @@ final class DictationCoordinator: ObservableObject {
 
   private func receive(_ snapshot: AudioMeterSnapshot) {
     lastBufferDate = snapshot.lastBufferDate
-    meterLevels.removeFirst()
-    meterLevels.append(snapshot.level)
+    // One assignment per snapshot: each @Published write notifies observers.
+    meterLevels = meterLevels.dropFirst() + [snapshot.level]
     if snapshot.level > 0.08 {
       lastAudibleDate = snapshot.lastBufferDate
-      isSilent = false
+      if isSilent { isSilent = false }
     } else if let lastAudibleDate,
               snapshot.lastBufferDate.timeIntervalSince(lastAudibleDate) >= 3,
               !isSilent {
@@ -137,12 +131,10 @@ final class DictationCoordinator: ObservableObject {
   }
 
   private func finish(transcript: String) async {
-    watchdogTask?.cancel()
-    if case .failed = phase { return }
+    // A failure (e.g. the watchdog) may already have handled this session.
+    guard phase == .finalizing else { return }
     guard destination == .global else {
-      preparedRefinementSession = nil
-      phase = .idle
-      startedAt = nil
+      reset()
       return
     }
 
@@ -157,7 +149,6 @@ final class DictationCoordinator: ObservableObject {
     let rules = store.corrections.filter { $0.language == language || $0.language.isEmpty }
     let context = insertionService.focusedContext().surroundingText
     let refined = await refine(raw, language: language, context: context, rules: rules)
-    preparedRefinementSession = nil
 
     phase = .inserting
     let result = await insertionService.insertOrCopy(refined)
@@ -181,8 +172,7 @@ final class DictationCoordinator: ObservableObject {
   ) async -> String {
     let fallback = DictationTextCleanup.conservative(raw, rules: rules)
     guard appState.dictationCleanupEnabled,
-          SystemLanguageModel.default.availability == .available,
-          let session = preparedRefinementSession else {
+          SystemLanguageModel.default.availability == .available else {
       return fallback
     }
 
@@ -207,6 +197,7 @@ final class DictationCoordinator: ObservableObject {
       Termes préférés : \(terms)
       """
 
+    let session = LanguageModelSession(instructions: Self.refinementInstructions)
     let generation = Task { @MainActor in
       try await session.respond(to: prompt).content
     }
@@ -224,19 +215,15 @@ final class DictationCoordinator: ObservableObject {
     }
   }
 
-  private func makeRefinementSession() -> LanguageModelSession? {
-    guard SystemLanguageModel.default.availability == .available else { return nil }
-    return LanguageModelSession(instructions: """
-      Tu nettoies fidèlement une dictée. Retourne uniquement le texte final, sans commentaire.
-      Supprime hésitations, répétitions, bégaiements et faux départs. Corrige la ponctuation et
-      les erreurs probables, sans changer le sens, le ton ni les réserves. Préserve exactement
-      noms, nombres, URL, chemins, code et termes techniques. Ne complète jamais les idées.
-      """)
-  }
+  private static let refinementInstructions = """
+    Tu nettoies fidèlement une dictée. Retourne uniquement le texte final, sans commentaire.
+    Supprime hésitations, répétitions, bégaiements et faux départs. Corrige la ponctuation et
+    les erreurs probables, sans changer le sens, le ton ni les réserves. Préserve exactement
+    noms, nombres, URL, chemins, code et termes techniques. Ne complète jamais les idées.
+    """
 
   private func fail(_ message: String, recoverableText: String) {
     watchdogTask?.cancel()
-    preparedRefinementSession = nil
     rawTranscript = recoverableText
     if !recoverableText.isEmpty {
       NSPasteboard.general.clearContents()

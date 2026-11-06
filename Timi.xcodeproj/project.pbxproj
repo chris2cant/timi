@@ -18,6 +18,7 @@
 		A10000000000000000000006 /* MascotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* MascotView.swift */; };
 		A10000000000000000000007 /* MascotWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* MascotWindowController.swift */; };
 		A10000000000000000000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* SettingsView.swift */; };
+		D10000000000000000000304 /* ExpressionGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000304 /* ExpressionGalleryView.swift */; };
 		A10000000000000000000009 /* PositionCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* PositionCalculatorTests.swift */; };
 		A1000000000000000000000A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* Assets.xcassets */; };
 		A1000000000000000000000B /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* AppStateTests.swift */; };
@@ -40,13 +41,22 @@
 		C10000000000000000000202 /* ClaudeHookServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000202 /* ClaudeHookServer.swift */; };
 		C10000000000000000000203 /* ClaudeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000203 /* ClaudeSession.swift */; };
 		C10000000000000000000204 /* ClaudeSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000204 /* ClaudeSessionStore.swift */; };
+		E10000000000000000000401 /* ClaudeUsageLimits.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000000000000000000401 /* ClaudeUsageLimits.swift */; };
+		E10000000000000000000402 /* ClaudeUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000000000000000000402 /* ClaudeUsageStore.swift */; };
+		E10000000000000000000403 /* UsageGaugeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000000000000000000403 /* UsageGaugeView.swift */; };
+		E10000000000000000000404 /* ClaudeUsageLimitsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000000000000000000404 /* ClaudeUsageLimitsTests.swift */; };
 		C10000000000000000000205 /* SessionFocuser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000205 /* SessionFocuser.swift */; };
 		C10000000000000000000210 /* ClaudeSessionDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000210 /* ClaudeSessionDiscovery.swift */; };
 		C10000000000000000000206 /* SessionMascotLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000206 /* SessionMascotLayout.swift */; };
+		D10000000000000000000303 /* AnimatedEyes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000303 /* AnimatedEyes.swift */; };
+		D10000000000000000000302 /* EyeCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000302 /* EyeCatalog.swift */; };
+		D10000000000000000000301 /* EyeExpression.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000301 /* EyeExpression.swift */; };
 		C10000000000000000000207 /* SessionMascotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000207 /* SessionMascotView.swift */; };
 		C10000000000000000000208 /* SessionMascotsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000208 /* SessionMascotsWindowController.swift */; };
 		C10000000000000000000209 /* ClaudeSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000209 /* ClaudeSessionTests.swift */; };
 		C1000000000000000000020A /* SessionMascotLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000000000000000000020A /* SessionMascotLayoutTests.swift */; };
+		D10000000000000000000306 /* EyeCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000306 /* EyeCatalogTests.swift */; };
+		D10000000000000000000305 /* EyeExpressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000305 /* EyeExpressionTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,6 +81,7 @@
 		A20000000000000000000006 /* MascotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MascotView.swift; sourceTree = "<group>"; };
 		A20000000000000000000007 /* MascotWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MascotWindowController.swift; sourceTree = "<group>"; };
 		A20000000000000000000008 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		D20000000000000000000304 /* ExpressionGalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpressionGalleryView.swift; sourceTree = "<group>"; };
 		A20000000000000000000009 /* PositionCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PositionCalculatorTests.swift; sourceTree = "<group>"; };
 		A2000000000000000000000A /* Timi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Timi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2000000000000000000000B /* TimiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TimiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -96,13 +107,22 @@
 		C20000000000000000000202 /* ClaudeHookServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeHookServer.swift; sourceTree = "<group>"; };
 		C20000000000000000000203 /* ClaudeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeSession.swift; sourceTree = "<group>"; };
 		C20000000000000000000204 /* ClaudeSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeSessionStore.swift; sourceTree = "<group>"; };
+		E20000000000000000000401 /* ClaudeUsageLimits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageLimits.swift; sourceTree = "<group>"; };
+		E20000000000000000000402 /* ClaudeUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageStore.swift; sourceTree = "<group>"; };
+		E20000000000000000000403 /* UsageGaugeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageGaugeView.swift; sourceTree = "<group>"; };
+		E20000000000000000000404 /* ClaudeUsageLimitsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageLimitsTests.swift; sourceTree = "<group>"; };
 		C20000000000000000000205 /* SessionFocuser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFocuser.swift; sourceTree = "<group>"; };
 		C20000000000000000000210 /* ClaudeSessionDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeSessionDiscovery.swift; sourceTree = "<group>"; };
 		C20000000000000000000206 /* SessionMascotLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionMascotLayout.swift; sourceTree = "<group>"; };
+		D20000000000000000000303 /* AnimatedEyes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedEyes.swift; sourceTree = "<group>"; };
+		D20000000000000000000302 /* EyeCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EyeCatalog.swift; sourceTree = "<group>"; };
+		D20000000000000000000301 /* EyeExpression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EyeExpression.swift; sourceTree = "<group>"; };
 		C20000000000000000000207 /* SessionMascotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionMascotView.swift; sourceTree = "<group>"; };
 		C20000000000000000000208 /* SessionMascotsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionMascotsWindowController.swift; sourceTree = "<group>"; };
 		C20000000000000000000209 /* ClaudeSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeSessionTests.swift; sourceTree = "<group>"; };
 		C2000000000000000000020A /* SessionMascotLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionMascotLayoutTests.swift; sourceTree = "<group>"; };
+		D20000000000000000000306 /* EyeCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EyeCatalogTests.swift; sourceTree = "<group>"; };
+		D20000000000000000000305 /* EyeExpressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EyeExpressionTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -170,8 +190,12 @@
 				A20000000000000000000006 /* MascotView.swift */,
 				A20000000000000000000007 /* MascotWindowController.swift */,
 				C20000000000000000000206 /* SessionMascotLayout.swift */,
+				D20000000000000000000303 /* AnimatedEyes.swift */,
+				D20000000000000000000302 /* EyeCatalog.swift */,
+				D20000000000000000000301 /* EyeExpression.swift */,
 				C20000000000000000000207 /* SessionMascotView.swift */,
 				C20000000000000000000208 /* SessionMascotsWindowController.swift */,
+				E20000000000000000000403 /* UsageGaugeView.swift */,
 			);
 			path = Mascot;
 			sourceTree = "<group>";
@@ -180,6 +204,7 @@
 			isa = PBXGroup;
 			children = (
 				A20000000000000000000008 /* SettingsView.swift */,
+				D20000000000000000000304 /* ExpressionGalleryView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -194,6 +219,9 @@
 				B20000000000000000000106 /* DictationTests.swift */,
 				C20000000000000000000209 /* ClaudeSessionTests.swift */,
 				C2000000000000000000020A /* SessionMascotLayoutTests.swift */,
+				D20000000000000000000306 /* EyeCatalogTests.swift */,
+				E20000000000000000000404 /* ClaudeUsageLimitsTests.swift */,
+				D20000000000000000000305 /* EyeExpressionTests.swift */,
 			);
 			path = TimiTests;
 			sourceTree = "<group>";
@@ -240,6 +268,8 @@
 				C20000000000000000000203 /* ClaudeSession.swift */,
 				C20000000000000000000210 /* ClaudeSessionDiscovery.swift */,
 				C20000000000000000000204 /* ClaudeSessionStore.swift */,
+				E20000000000000000000401 /* ClaudeUsageLimits.swift */,
+				E20000000000000000000402 /* ClaudeUsageStore.swift */,
 				C20000000000000000000205 /* SessionFocuser.swift */,
 			);
 			path = ClaudeSessions;
@@ -361,6 +391,7 @@
 				A10000000000000000000006 /* MascotView.swift in Sources */,
 				A10000000000000000000007 /* MascotWindowController.swift in Sources */,
 				A10000000000000000000008 /* SettingsView.swift in Sources */,
+				D10000000000000000000304 /* ExpressionGalleryView.swift in Sources */,
 				A1000000000000000000000C /* ChatPositionCalculator.swift in Sources */,
 				A1000000000000000000000D /* ChatState.swift in Sources */,
 				A10000000000000000000011 /* SpeechInputController.swift in Sources */,
@@ -377,10 +408,16 @@
 				C10000000000000000000203 /* ClaudeSession.swift in Sources */,
 				C10000000000000000000210 /* ClaudeSessionDiscovery.swift in Sources */,
 				C10000000000000000000204 /* ClaudeSessionStore.swift in Sources */,
+				E10000000000000000000401 /* ClaudeUsageLimits.swift in Sources */,
+				E10000000000000000000402 /* ClaudeUsageStore.swift in Sources */,
 				C10000000000000000000205 /* SessionFocuser.swift in Sources */,
 				C10000000000000000000206 /* SessionMascotLayout.swift in Sources */,
+				D10000000000000000000303 /* AnimatedEyes.swift in Sources */,
+				D10000000000000000000302 /* EyeCatalog.swift in Sources */,
+				D10000000000000000000301 /* EyeExpression.swift in Sources */,
 				C10000000000000000000207 /* SessionMascotView.swift in Sources */,
 				C10000000000000000000208 /* SessionMascotsWindowController.swift in Sources */,
+				E10000000000000000000403 /* UsageGaugeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -395,6 +432,9 @@
 				B10000000000000000000106 /* DictationTests.swift in Sources */,
 				C10000000000000000000209 /* ClaudeSessionTests.swift in Sources */,
 				C1000000000000000000020A /* SessionMascotLayoutTests.swift in Sources */,
+				D10000000000000000000306 /* EyeCatalogTests.swift in Sources */,
+				E10000000000000000000404 /* ClaudeUsageLimitsTests.swift in Sources */,
+				D10000000000000000000305 /* EyeExpressionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
